@@ -8,6 +8,7 @@ import { AuthUser } from "@/lib/auth";
 import { LogOut, Users, FileText, LayoutTemplate, BarChart3, Trash2 } from "lucide-react";
 import { TEMPLATES } from "@/lib/templates";
 import type { CVRecord } from "@/lib/cv-record";
+import { useCVStore } from "@/store/cv-store";
 
 interface Props {
   user: AuthUser;
@@ -15,6 +16,7 @@ interface Props {
 
 export default function AdminClient({ user }: Props) {
   const router = useRouter();
+  const resetCV = useCVStore((state) => state.resetCV);
   const [cvList, setCVList] = useState<CVRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "cvs" | "templates">("overview");
@@ -53,6 +55,7 @@ export default function AdminClient({ user }: Props) {
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
+    resetCV();
     router.push("/");
     router.refresh();
   };

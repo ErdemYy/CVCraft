@@ -1,8 +1,12 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React from "react";
-import { CVData, DEFAULT_THEME, SECTION_LABELS, type SectionKey } from "@/lib/cv-types";
+import { CVData, DEFAULT_THEME, type SectionId } from "@/lib/cv-types";
+import { getContactItems, getPersonalDetailItems } from "@/lib/personal-info";
+import { getCustomSection, getOrderedSectionIds, getSectionTitle, isBuiltInSectionId, isSectionVisible } from "@/lib/section-utils";
+import { resolveFontFamily } from "@/lib/font-options";
+import CVPhoto from "@/components/templates/CVPhoto";
+import { DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
 
 interface Props {
   cv: CVData;
@@ -164,7 +168,7 @@ function PageShell({
         minHeight: "1123px",
         backgroundColor: variant.paper,
         color: variant.secondary,
-        fontFamily: variant.bodyFont,
+        fontFamily: cv.theme.fontFamily === DEFAULT_THEME.fontFamily ? variant.bodyFont : resolveFontFamily(cv.theme.fontFamily),
         fontSize: getFontSize(cv.theme.fontSize).body,
         transform: `scale(${scale})`,
         transformOrigin: "top left",
@@ -188,7 +192,7 @@ function SingleLayout({
   variant: Variant;
   colors: ReturnType<typeof getColors>;
 }) {
-  const { personalInfo: p, sections, sectionOrder } = cv;
+  const { personalInfo: p } = cv;
   const font = getFontSize(cv.theme.fontSize);
   const executive = variant.id === "executive";
 
@@ -211,28 +215,31 @@ function SingleLayout({
               {variant.label}
             </div>
             <h1 style={{ margin: 0, fontFamily: variant.headingFont, fontSize: font.h1, lineHeight: 1.04, color: colors.secondary }}>
-              {[p.firstName, p.lastName].filter(Boolean).join(" ") || "Ad Soyad"}
+              <EditableText fieldId="personal.fullName" value={[p.firstName, p.lastName].filter(Boolean).join(" ")} singleLine placeholder="Ad Soyad" />
             </h1>
             {p.title && (
               <div style={{ marginTop: "8px", color: colors.muted ?? variant.muted, fontSize: "14px", fontWeight: 600 }}>
-                {p.title}
+                <EditableText fieldId="personal.title" value={p.title} singleLine />
               </div>
             )}
           </div>
 
-          <ContactBlock cv={cv} colors={colors} compact align="right" />
+          <div>
+            <ContactBlock cv={cv} colors={colors} compact align="right" />
+            <PersonalDetailsBlock cv={cv} colors={colors} compact align="right" />
+          </div>
         </div>
 
         {p.summary && (
           <div style={{ marginBottom: "22px", padding: executive ? "14px 18px" : "0", backgroundColor: executive ? `${colors.accent}22` : "transparent" }}>
             <p style={{ margin: 0, lineHeight: 1.68, color: colors.secondary }}>
-              {p.summary}
+              <EditableText fieldId="personal.summary" value={p.summary} multiline />
             </p>
           </div>
         )}
 
-        {sectionOrder.map((key) => (
-          <MainSection key={key} sectionKey={key} cv={cv} colors={colors} variant={variant} />
+        {getOrderedSectionIds(cv).map((sectionId) => (
+          <MainSection key={sectionId} sectionId={sectionId} cv={cv} colors={colors} variant={variant} />
         ))}
       </div>
     </PageShell>
@@ -250,9 +257,10 @@ function SplitLayout({
   variant: Variant;
   colors: ReturnType<typeof getColors>;
 }) {
-  const { personalInfo: p, sectionOrder } = cv;
+  const { personalInfo: p } = cv;
   const font = getFontSize(cv.theme.fontSize);
-  const mainSections = sectionOrder.filter((key) => key !== "skills" && key !== "languages");
+  const mainSections = getOrderedSectionIds(cv).filter((key) => key !== "skills" && key !== "languages");
+  const sidebarSectionIds = getOrderedSectionIds(cv).filter((key) => key === "skills" || key === "languages");
 
   return (
     <PageShell cv={cv} scale={scale} variant={variant}>
@@ -260,30 +268,39 @@ function SplitLayout({
         <aside style={{ backgroundColor: variant.sidebarBg, padding: "44px 26px", borderRight: `1px solid ${colors.accent}88` }}>
           <div style={{ width: "38px", height: "5px", backgroundColor: colors.primary, marginBottom: "28px" }} />
           <h1 style={{ margin: 0, fontFamily: variant.headingFont, fontSize: "26px", lineHeight: 1.08, color: colors.secondary }}>
-            {[p.firstName, p.lastName].filter(Boolean).join(" ") || "Ad Soyad"}
+            <EditableText fieldId="personal.fullName" value={[p.firstName, p.lastName].filter(Boolean).join(" ")} singleLine placeholder="Ad Soyad" />
           </h1>
           {p.title && (
             <div style={{ marginTop: "8px", fontSize: "12px", color: colors.primary, fontWeight: 800, lineHeight: 1.35 }}>
-              {p.title}
+              <EditableText fieldId="personal.title" value={p.title} singleLine />
             </div>
           )}
 
           <SidebarTitle label="İletişim" color={colors.primary} />
           <ContactBlock cv={cv} colors={colors} compact />
+          <PersonalDetailsBlock cv={cv} colors={colors} compact />
 
-          {cv.sections.skills.length > 0 && (
-            <>
-              <SidebarTitle label="Yetkinlikler" color={colors.primary} />
-              <SkillList cv={cv} colors={colors} mode="bars" />
-            </>
-          )}
+          {sidebarSectionIds.map((sectionId) => {
+            if (sectionId === "skills" && isSectionVisible(cv, "skills") && cv.sections.skills.length > 0) {
+              return (
+                <DraggableSection key="skills" sectionId="skills">
+                  <SidebarTitle label={getSectionTitle(cv, "skills")} color={colors.primary} />
+                  <SkillList cv={cv} colors={colors} mode="bars" />
+                </DraggableSection>
+              );
+            }
 
-          {cv.sections.languages.length > 0 && (
-            <>
-              <SidebarTitle label="Diller" color={colors.primary} />
-              <LanguageList cv={cv} colors={colors} />
-            </>
-          )}
+            if (sectionId === "languages" && isSectionVisible(cv, "languages") && cv.sections.languages.length > 0) {
+              return (
+                <DraggableSection key="languages" sectionId="languages">
+                  <SidebarTitle label={getSectionTitle(cv, "languages")} color={colors.primary} />
+                  <LanguageList cv={cv} colors={colors} />
+                </DraggableSection>
+              );
+            }
+
+            return null;
+          })}
         </aside>
 
         <main style={{ padding: "46px 44px 42px" }}>
@@ -292,12 +309,12 @@ function SplitLayout({
               Profesyonel Profil
             </div>
             <p style={{ margin: 0, lineHeight: 1.68, color: colors.secondary }}>
-              {p.summary || "Kariyer hedeflerini ve profesyonel değer önerini burada özetleyebilirsin."}
+              <EditableText fieldId="personal.summary" value={p.summary || "Kariyer hedeflerini ve profesyonel değer önerini burada özetleyebilirsin."} multiline />
             </p>
           </div>
 
-          {mainSections.map((key) => (
-            <MainSection key={key} sectionKey={key} cv={cv} colors={colors} variant={variant} />
+          {mainSections.map((sectionId) => (
+            <MainSection key={sectionId} sectionId={sectionId} cv={cv} colors={colors} variant={variant} />
           ))}
         </main>
       </div>
@@ -316,9 +333,10 @@ function EditorialLayout({
   variant: Variant;
   colors: ReturnType<typeof getColors>;
 }) {
-  const { personalInfo: p, sectionOrder, sections, theme } = cv;
+  const { personalInfo: p, sections, theme } = cv;
   const photoShape = theme.photoShape === "square" ? "0" : theme.photoShape === "rounded" ? "16px" : "50%";
-  const mainSections = sectionOrder.filter((key) => key !== "skills" && key !== "languages");
+  const mainSections = getOrderedSectionIds(cv).filter((key) => key !== "skills" && key !== "languages");
+  const sidebarSectionIds = getOrderedSectionIds(cv).filter((key) => key === "skills" || key === "languages");
 
   return (
     <PageShell cv={cv} scale={scale} variant={variant}>
@@ -326,19 +344,13 @@ function EditorialLayout({
         <header style={{ backgroundColor: variant.sidebarBg, padding: "44px 56px 34px", position: "relative" }}>
           <div style={{ position: "absolute", right: "46px", top: "38px", width: "120px", height: "120px", borderRadius: "50%", border: `1px solid ${colors.accent}` }} />
           {p.photo && (
-            <img
-              src={p.photo}
-              alt="Profil"
-              style={{
-                position: "absolute",
-                right: "58px",
-                top: "50px",
-                width: "96px",
-                height: "96px",
-                objectFit: "cover",
-                borderRadius: photoShape,
-                border: `4px solid ${variant.paper}`,
-              }}
+            <CVPhoto
+              personalInfo={p}
+              width={96}
+              height={96}
+              fallbackRadius={photoShape}
+              border={`4px solid ${variant.paper}`}
+              style={{ position: "absolute", right: "58px", top: "50px" }}
             />
           )}
           <div style={{ maxWidth: "500px" }}>
@@ -346,37 +358,46 @@ function EditorialLayout({
               Editorial Portfolio CV
             </div>
             <h1 style={{ margin: 0, fontFamily: variant.headingFont, fontSize: "40px", lineHeight: 1.02, color: colors.secondary }}>
-              {[p.firstName, p.lastName].filter(Boolean).join(" ") || "Ad Soyad"}
+              <EditableText fieldId="personal.fullName" value={[p.firstName, p.lastName].filter(Boolean).join(" ")} singleLine placeholder="Ad Soyad" />
             </h1>
-            {p.title && <div style={{ marginTop: "10px", fontSize: "14px", color: colors.primary, fontWeight: 700 }}>{p.title}</div>}
-            {p.summary && <p style={{ margin: "18px 0 0", lineHeight: 1.62, color: colors.muted ?? variant.muted }}>{p.summary}</p>}
+            {p.title && <div style={{ marginTop: "10px", fontSize: "14px", color: colors.primary, fontWeight: 700 }}><EditableText fieldId="personal.title" value={p.title} singleLine /></div>}
+            {p.summary && <EditableText fieldId="personal.summary" value={p.summary} as="p" multiline style={{ margin: "18px 0 0", lineHeight: 1.62, color: colors.muted ?? variant.muted }} />}
           </div>
         </header>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 225px", gap: "34px", padding: "36px 54px 44px" }}>
           <main>
             {mainSections.map((key) => (
-              <MainSection key={key} sectionKey={key} cv={cv} colors={colors} variant={variant} />
+              <MainSection key={key} sectionId={key} cv={cv} colors={colors} variant={variant} />
             ))}
           </main>
 
           <aside>
             <SidebarTitle label="İletişim" color={colors.primary} />
             <ContactBlock cv={cv} colors={colors} compact />
+            <PersonalDetailsBlock cv={cv} colors={colors} compact />
 
-            {sections.skills.length > 0 && (
-              <>
-                <SidebarTitle label="Yetenekler" color={colors.primary} />
-                <SkillList cv={cv} colors={colors} mode="chips" />
-              </>
-            )}
+            {sidebarSectionIds.map((sectionId) => {
+              if (sectionId === "skills" && isSectionVisible(cv, "skills") && sections.skills.length > 0) {
+                return (
+                  <DraggableSection key="skills" sectionId="skills">
+                    <SidebarTitle label={getSectionTitle(cv, "skills")} color={colors.primary} />
+                    <SkillList cv={cv} colors={colors} mode="chips" />
+                  </DraggableSection>
+                );
+              }
 
-            {sections.languages.length > 0 && (
-              <>
-                <SidebarTitle label="Diller" color={colors.primary} />
-                <LanguageList cv={cv} colors={colors} />
-              </>
-            )}
+              if (sectionId === "languages" && isSectionVisible(cv, "languages") && sections.languages.length > 0) {
+                return (
+                  <DraggableSection key="languages" sectionId="languages">
+                    <SidebarTitle label={getSectionTitle(cv, "languages")} color={colors.primary} />
+                    <LanguageList cv={cv} colors={colors} />
+                  </DraggableSection>
+                );
+              }
+
+              return null;
+            })}
           </aside>
         </div>
       </div>
@@ -403,21 +424,39 @@ function ContactBlock({
   compact?: boolean;
   align?: "left" | "right";
 }) {
-  const p = cv.personalInfo;
-  const items = [
-    p.email,
-    p.phone,
-    p.location,
-    p.website,
-    p.linkedin,
-    p.github,
-  ].filter(Boolean);
+  const items = getContactItems(cv.personalInfo);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: compact ? "6px" : "8px", textAlign: align, color: colors.muted ?? "#667085" }}>
       {items.map((item) => (
-        <div key={item} style={{ fontSize: compact ? "10px" : "11px", lineHeight: 1.35, wordBreak: "break-word" }}>
-          {item}
+        <div key={item.label} style={{ fontSize: compact ? "10px" : "11px", lineHeight: 1.35, wordBreak: "break-word" }}>
+          <EditableText fieldId={`personal.${item.field}`} value={item.value} singleLine />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PersonalDetailsBlock({
+  cv,
+  colors,
+  compact = false,
+  align = "left",
+}: {
+  cv: CVData;
+  colors: ReturnType<typeof getColors>;
+  compact?: boolean;
+  align?: "left" | "right";
+}) {
+  const items = getPersonalDetailItems(cv.personalInfo);
+  if (items.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: "12px", textAlign: align, color: colors.muted ?? "#667085" }}>
+      {items.map((item) => (
+        <div key={item.label} style={{ fontSize: compact ? "9.6px" : "10.5px", lineHeight: 1.42, marginBottom: "4px" }}>
+          <span style={{ color: colors.primary, fontWeight: 800 }}>{item.label}: </span>
+          <EditableText fieldId={`personal.${item.field}`} value={item.value} singleLine />
         </div>
       ))}
     </div>
@@ -430,7 +469,7 @@ function SkillList({ cv, colors, mode }: { cv: CVData; colors: ReturnType<typeof
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
         {cv.sections.skills.map((skill) => (
           <span key={skill.id} style={{ fontSize: "9.5px", padding: "5px 7px", border: `1px solid ${colors.accent}`, color: colors.secondary }}>
-            {skill.name}
+            <EditableText fieldId={`section:skills:item:${skill.id}:field:name`} value={skill.name} singleLine />
           </span>
         ))}
       </div>
@@ -442,7 +481,7 @@ function SkillList({ cv, colors, mode }: { cv: CVData; colors: ReturnType<typeof
       {cv.sections.skills.map((skill) => (
         <div key={skill.id} style={{ marginBottom: "9px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: colors.secondary, marginBottom: "4px" }}>
-            <span>{skill.name}</span>
+            <EditableText fieldId={`section:skills:item:${skill.id}:field:name`} value={skill.name} singleLine />
             <span style={{ color: colors.primary }}>{skill.level}/5</span>
           </div>
           <div style={{ height: "3px", backgroundColor: `${colors.accent}66` }}>
@@ -459,8 +498,8 @@ function LanguageList({ cv, colors }: { cv: CVData; colors: ReturnType<typeof ge
     <div>
       {cv.sections.languages.map((language) => (
         <div key={language.id} style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "10px", color: colors.secondary, marginBottom: "7px" }}>
-          <span>{language.name}</span>
-          <span style={{ color: colors.primary, whiteSpace: "nowrap" }}>{language.level}</span>
+          <EditableText fieldId={`section:languages:item:${language.id}:field:name`} value={language.name} singleLine />
+          <EditableText fieldId={`section:languages:item:${language.id}:field:level`} value={language.level} singleLine style={{ color: colors.primary, whiteSpace: "nowrap" }} />
         </div>
       ))}
     </div>
@@ -468,67 +507,100 @@ function LanguageList({ cv, colors }: { cv: CVData; colors: ReturnType<typeof ge
 }
 
 function MainSection({
-  sectionKey,
+  sectionId,
   cv,
   colors,
   variant,
 }: {
-  sectionKey: SectionKey;
+  sectionId: SectionId;
   cv: CVData;
   colors: ReturnType<typeof getColors>;
   variant: Variant;
 }) {
-  const items = cv.sections[sectionKey];
+  if (!isBuiltInSectionId(sectionId)) {
+    const customSection = getCustomSection(cv, sectionId);
+    if (!customSection || customSection.items.length === 0) return null;
+
+    return (
+      <DraggableSection sectionId={sectionId}>
+      <section style={{ marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "11px", marginBottom: "10px" }}>
+          <h2 style={{ margin: 0, color: colors.primary, fontSize: "10px", fontWeight: 900, letterSpacing: "2.1px", textTransform: "uppercase" }}>
+            <EditableText fieldId={`sectionTitle:${sectionId}`} value={getSectionTitle(cv, sectionId)} singleLine />
+          </h2>
+          <div style={{ flex: 1, height: "1px", backgroundColor: colors.accent, opacity: 0.85 }} />
+        </div>
+
+        {customSection.items.map((item) => (
+          <TimelineItem
+            key={item.id}
+            title={item.title}
+            description={item.description}
+            fieldId={`custom:${sectionId}:item:${item.id}:field:description`}
+            colors={colors}
+            variant={variant}
+          />
+        ))}
+      </section>
+      </DraggableSection>
+    );
+  }
+
+  const items = cv.sections[sectionId];
   if (!items || items.length === 0) return null;
 
   return (
+    <DraggableSection sectionId={sectionId}>
     <section style={{ marginBottom: "20px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "11px", marginBottom: "10px" }}>
         <h2 style={{ margin: 0, color: colors.primary, fontSize: "10px", fontWeight: 900, letterSpacing: "2.1px", textTransform: "uppercase" }}>
-          {SECTION_LABELS[sectionKey]}
+          <EditableText fieldId={`sectionTitle:${sectionId}`} value={getSectionTitle(cv, sectionId)} singleLine />
         </h2>
         <div style={{ flex: 1, height: "1px", backgroundColor: colors.accent, opacity: 0.85 }} />
       </div>
 
-      {sectionKey === "experience" && cv.sections.experience.map((item) => (
+      {sectionId === "experience" && cv.sections.experience.map((item) => (
         <TimelineItem
           key={item.id}
           title={item.position}
           subtitle={[item.company, item.location].filter(Boolean).join(" · ")}
           date={compactDate(item.startDate, item.endDate, item.current)}
           description={item.description}
+          fieldId={`section:experience:item:${item.id}:field:description`}
           colors={colors}
           variant={variant}
         />
       ))}
 
-      {sectionKey === "education" && cv.sections.education.map((item) => (
+      {sectionId === "education" && cv.sections.education.map((item) => (
         <TimelineItem
           key={item.id}
           title={[item.degree, item.field].filter(Boolean).join(" · ")}
           subtitle={item.school}
           date={compactDate(item.startDate, item.endDate, item.current)}
           description={[item.gpa ? `GPA: ${item.gpa}` : "", item.description].filter(Boolean).join("\n")}
+          fieldId={`section:education:item:${item.id}:field:description`}
           colors={colors}
           variant={variant}
         />
       ))}
 
-      {sectionKey === "skills" && <SkillList cv={cv} colors={colors} mode="chips" />}
-      {sectionKey === "languages" && <LanguageList cv={cv} colors={colors} />}
+      {sectionId === "skills" && <SkillList cv={cv} colors={colors} mode="chips" />}
+      {sectionId === "languages" && <LanguageList cv={cv} colors={colors} />}
 
-      {sectionKey === "projects" && cv.sections.projects.map((item) => (
+      {sectionId === "projects" && cv.sections.projects.map((item) => (
         <TimelineItem
           key={item.id}
           title={item.name}
           subtitle={[item.technologies, item.url].filter(Boolean).join(" · ")}
           description={item.description}
+          fieldId={`section:projects:item:${item.id}:field:description`}
           colors={colors}
           variant={variant}
         />
       ))}
 
-      {sectionKey === "certificates" && cv.sections.certificates.map((item) => (
+      {sectionId === "certificates" && cv.sections.certificates.map((item) => (
         <TimelineItem
           key={item.id}
           title={item.name}
@@ -539,17 +611,29 @@ function MainSection({
         />
       ))}
 
-      {sectionKey === "references" && cv.sections.references.map((item) => (
+      {sectionId === "references" && cv.sections.references.map((item) => (
         <TimelineItem
           key={item.id}
           title={item.name}
           subtitle={[item.title, item.company].filter(Boolean).join(" · ")}
           description={[item.email, item.phone].filter(Boolean).join(" · ")}
+          fieldId={`section:references:item:${item.id}:field:description`}
           colors={colors}
           variant={variant}
         />
       ))}
+
+      {sectionId === "interests" && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+          {cv.sections.interests.map((item) => (
+            <span key={item.id} style={{ fontSize: "9.8px", padding: "5px 7px", border: `1px solid ${colors.accent}`, color: colors.secondary }}>
+              {item.name}
+            </span>
+          ))}
+        </div>
+      )}
     </section>
+    </DraggableSection>
   );
 }
 
@@ -558,6 +642,7 @@ function TimelineItem({
   subtitle,
   date,
   description,
+  fieldId,
   colors,
   variant,
 }: {
@@ -565,6 +650,7 @@ function TimelineItem({
   subtitle?: string;
   date?: string;
   description?: string;
+  fieldId?: string;
   colors: ReturnType<typeof getColors>;
   variant: Variant;
 }) {
@@ -585,9 +671,13 @@ function TimelineItem({
         {date && <div style={{ fontSize: "9.5px", color: colors.muted ?? "#667085", whiteSpace: "nowrap" }}>{date}</div>}
       </div>
       {description && (
-        <p style={{ margin: "5px 0 0", whiteSpace: "pre-line", fontSize: "10.4px", lineHeight: 1.62, color: colors.muted ?? "#4B5563" }}>
-          {description}
-        </p>
+        <EditableText
+          fieldId={fieldId ?? "timeline.description"}
+          value={description}
+          as="p"
+          multiline
+          style={{ margin: "5px 0 0", whiteSpace: "pre-line", fontSize: "10.4px", lineHeight: 1.62, color: colors.muted ?? "#4B5563" }}
+        />
       )}
     </div>
   );

@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AuthUser } from "@/lib/auth";
 import { useCVStore } from "@/store/cv-store";
-import { SECTION_LABELS, type SectionKey } from "@/lib/cv-types";
+import { type SectionId } from "@/lib/cv-types";
+import { getEditableSectionIds, getSectionTitle, isSectionVisible } from "@/lib/section-utils";
+import { deleteDeviceCV, saveDeviceCV } from "@/lib/device-cv-storage";
 import CVRenderer from "@/components/templates/CVRenderer";
 import PersonalInfoPanel from "./PersonalInfoPanel";
 import SectionPanel from "./SectionPanel";
 import ThemePanel from "./ThemePanel";
 import SectionOrderPanel from "./SectionOrderPanel";
+import RichTextToolbar from "./RichTextToolbar";
 import {
   ChevronLeft, Save, Download, Palette, List, User, ArrowLeftRight, Loader2,
   LayoutTemplate
@@ -22,35 +25,47 @@ interface Props {
 }
 
 type LeftTab = "personal" | "sections" | "order" | "theme";
-
-const SECTION_KEYS: SectionKey[] = [
-  "experience", "education", "skills", "languages", "projects", "certificates", "references"
-];
-
-const SECTION_ICONS: Record<SectionKey, string> = {
-  experience: "💼",
-  education: "🎓",
-  skills: "⚡",
-  languages: "🌐",
-  projects: "🚀",
-  references: "👥",
-  certificates: "🏆",
-};
+type SaveStatus = "idle" | "saving" | "saved" | "device" | "error";
 
 export default function EditorClient({ user }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { cv, setTemplate, isDirty, markSaved, setTitle, loadCV } = useCVStore();
+  const {
+    cv,
+    setTemplate,
+    isDirty,
+    markSaved,
+    setTitle,
+    loadCV,
+    setPersonalInfo,
+    setSection,
+    setCustomSectionItems,
+    setSectionTitle,
+    setSectionOrder,
+    setTextStyle,
+    setRichText,
+    clearTextStyle,
+    undo,
+    redo,
+    history,
+  } = useCVStore();
 
   const [leftTab, setLeftTab] = useState<LeftTab>("personal");
-  const [activeSection, setActiveSection] = useState<SectionKey>("experience");
+  const [activeSection, setActiveSection] = useState<SectionId>("experience");
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [exportError, setExportError] = useState("");
   const [titleEditing, setTitleEditing] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [activeTextField, setActiveTextField] = useState<string | null>(null);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const previewScale = 0.55;
+  const editableSections = getEditableSectionIds(cv);
+  const currentActiveSection = editableSections.includes(activeSection)
+    ? activeSection
+    : editableSections[0] ?? activeSection;
 
   // Apply template from URL param if fresh
   useEffect(() => {
@@ -60,10 +75,39 @@ export default function EditorClient({ user }: Props) {
     }
   }, [searchParams, setTemplate]);
 
-  const handleSave = async () => {
-    setSaving(true);
+  const activeTextStyle = useMemo(
+    () => activeTextField
+      ? cv.theme.textStyles[activeTextField] ?? {}
+      : cv.theme.globalTextStyle ?? {},
+    [activeTextField, cv.theme.globalTextStyle, cv.theme.textStyles],
+  );
+
+  const saveCV = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setSaving(true);
+    setSaveStatus("saving");
     setSaveError("");
+
+    const saveOnDevice = async () => {
+      try {
+        const localRecord = await saveDeviceCV(user.id, cv);
+        loadCV(localRecord);
+        setSaveStatus("device");
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+        return true;
+      } catch {
+        setSaveStatus("error");
+        setSaveError("CV kaydedilemedi. Tarayıcı depolama iznini kontrol edip tekrar deneyin.");
+        return false;
+      }
+    };
+
     try {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        await saveOnDevice();
+        return;
+      }
+
       const payload = {
         title: cv.title,
         templateId: cv.templateId,
@@ -90,23 +134,99 @@ export default function EditorClient({ user }: Props) {
 
       if (res.ok) {
         const data = await res.json();
+        if (cv.id) await deleteDeviceCV(user.id, cv.id);
         if (data.cv) {
           loadCV(data.cv);
         } else {
           markSaved();
         }
+        setSaveStatus("saved");
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 2500);
+      } else if (res.status === 401) {
+        setSaveStatus("error");
+        setSaveError("Oturum süreniz doldu. Lütfen yeniden giriş yapın.");
+        router.push("/login");
       } else {
-        const data = await res.json().catch(() => null);
-        setSaveError(data?.error || "CV kaydedilemedi.");
+        await saveOnDevice();
       }
     } catch {
-      setSaveError("CV kaydedilemedi. Lütfen tekrar deneyin.");
+      await saveOnDevice();
     } finally {
-      setSaving(false);
+      if (!silent) setSaving(false);
     }
+  }, [cv, loadCV, markSaved, router, user.id]);
+
+  const handleSave = () => {
+    void saveCV({ silent: false });
   };
+
+  const handlePreviewFieldChange = useCallback((fieldId: string, value: string, html?: string) => {
+    if (html) setRichText(fieldId, html);
+
+    if (fieldId === "personal.fullName") {
+      const parts = value.trim().split(/\s+/);
+      setPersonalInfo({
+        firstName: parts.slice(0, -1).join(" ") || parts[0] || "",
+        lastName: parts.length > 1 ? parts.at(-1) ?? "" : "",
+      });
+      return;
+    }
+
+    if (fieldId.startsWith("personal.")) {
+      const field = fieldId.replace("personal.", "") as keyof typeof cv.personalInfo;
+      setPersonalInfo({ [field]: value } as never);
+      return;
+    }
+
+    if (fieldId.startsWith("sectionTitle:")) {
+      const sectionId = fieldId.replace("sectionTitle:", "");
+      if (sectionId !== "summary") setSectionTitle(sectionId, value);
+      return;
+    }
+
+    const customMatch = fieldId.match(/^custom:(.+):item:(.+):field:(.+)$/);
+    if (customMatch) {
+      const [, sectionId, itemId, field] = customMatch;
+      const section = cv.sections.customSections.find((item) => item.id === sectionId);
+      if (!section) return;
+      setCustomSectionItems(sectionId, section.items.map((item) =>
+        item.id === itemId ? { ...item, [field]: value } : item,
+      ));
+      return;
+    }
+
+    const sectionMatch = fieldId.match(/^section:(.+):item:(.+):field:(.+)$/);
+    if (sectionMatch) {
+      const [, sectionKey, itemId, field] = sectionMatch;
+      if (!(sectionKey in cv.sections)) return;
+      const items = cv.sections[sectionKey as keyof typeof cv.sections];
+      if (!Array.isArray(items)) return;
+      const updated = items.map((item) => {
+        if (!("id" in item) || item.id !== itemId) return item;
+        if (sectionKey === "education" && field === "degree") {
+          const [degree, fieldName] = value.split(/\s+—\s+/, 2);
+          return { ...item, degree: degree ?? "", field: fieldName ?? "" };
+        }
+        return { ...item, [field]: value };
+      });
+      setSection(sectionKey as never, updated as never);
+    }
+  }, [cv, setCustomSectionItems, setPersonalInfo, setRichText, setSection, setSectionTitle]);
+
+  const handlePreviewSectionDrop = useCallback((sourceId: string, targetId: string, position: "before" | "after") => {
+    if (sourceId === targetId) return;
+    const currentOrder = [...cv.sectionOrder];
+    const sourceIndex = currentOrder.indexOf(sourceId);
+    const targetIndex = currentOrder.indexOf(targetId);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const [moved] = currentOrder.splice(sourceIndex, 1);
+    let insertIndex = targetIndex + (position === "after" ? 1 : 0);
+    if (sourceIndex < insertIndex) insertIndex -= 1;
+    currentOrder.splice(Math.max(0, Math.min(insertIndex, currentOrder.length)), 0, moved);
+    setSectionOrder(currentOrder);
+  }, [cv.sectionOrder, setSectionOrder]);
 
   const handleExportPDF = async () => {
     setExporting(true);
@@ -202,8 +322,13 @@ export default function EditorClient({ user }: Props) {
           {isDirty && (
             <span className="text-xs text-[#7A766E] hidden sm:inline">Kaydedilmemiş değişiklikler</span>
           )}
+          {saveStatus === "saving" && (
+            <span className="text-xs text-[#7A766E] hidden sm:inline">Kaydediliyor</span>
+          )}
           {saveSuccess && (
-            <span className="text-xs text-green-600 font-medium">✓ Kaydedildi</span>
+            <span className="text-xs text-green-600 font-medium">
+              {saveStatus === "device" ? "Bu cihazda kaydedildi" : "Kaydedildi"}
+            </span>
           )}
           {saveError && (
             <span className="hidden md:inline text-xs text-red-600 font-medium">{saveError}</span>
@@ -221,7 +346,7 @@ export default function EditorClient({ user }: Props) {
           </button>
 
           <button
-            onClick={handleExportPDF}
+            onClick={() => setPdfPreviewOpen(true)}
             disabled={exporting}
             className="flex items-center gap-1.5 px-4 py-1.5 bg-[#B08D57] text-white text-sm font-semibold rounded-lg hover:bg-[#9a7a4a] disabled:opacity-60 transition-all"
           >
@@ -230,6 +355,17 @@ export default function EditorClient({ user }: Props) {
           </button>
         </div>
       </header>
+
+      <RichTextToolbar
+        activeFieldId={activeTextField}
+        style={activeTextStyle}
+        onStyleChange={(patch) => setTextStyle(activeTextField ?? "__global", patch)}
+        onClear={() => clearTextStyle(activeTextField ?? "__global")}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={history.past.length > 0}
+        canRedo={history.future.length > 0}
+      />
 
       {/* Main editor layout */}
       <div className="flex flex-1 overflow-hidden">
@@ -268,23 +404,30 @@ export default function EditorClient({ user }: Props) {
                 <div className="p-4 border-b border-[#E8E4DC]">
                   <p className="text-xs text-[#7A766E] mb-2">Düzenlenecek bölümü seç:</p>
                   <div className="grid grid-cols-2 gap-1.5">
-                    {SECTION_KEYS.map((key) => (
+                    {editableSections.map((key) => {
+                      const visible = isSectionVisible(cv, key);
+                      return (
                       <button
                         key={key}
                         onClick={() => setActiveSection(key)}
                         className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all text-left ${
-                          activeSection === key
+                          currentActiveSection === key
                             ? "bg-[#B08D57]/10 text-[#B08D57] border border-[#B08D57]/30"
                             : "bg-gray-50 text-[#7A766E] border border-transparent hover:border-gray-200"
                         }`}
                       >
-                        <span>{SECTION_ICONS[key]}</span>
-                        <span className="truncate">{SECTION_LABELS[key]}</span>
+                        <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${visible ? "bg-[#B08D57]" : "bg-gray-300"}`} />
+                        <span className="truncate">{getSectionTitle(cv, key)}</span>
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
-                <SectionPanel sectionKey={activeSection} />
+                {editableSections.length > 0 ? (
+                  <SectionPanel sectionId={currentActiveSection} />
+                ) : (
+                  <div className="p-4 text-sm text-[#7A766E]">Düzenlenecek bölüm bulunmuyor.</div>
+                )}
               </div>
             )}
 
@@ -319,10 +462,18 @@ export default function EditorClient({ user }: Props) {
                 transformOrigin: "top left",
                 transform: `scale(${previewScale})`,
                 width: "794px",
-                pointerEvents: "none",
+                pointerEvents: "auto",
               }}
             >
-              <CVRenderer cv={cv} />
+              <CVRenderer
+                cv={cv}
+                editable
+                activeFieldId={activeTextField}
+                onActiveFieldChange={setActiveTextField}
+                onEditableFieldChange={handlePreviewFieldChange}
+                onRichTextChange={setRichText}
+                onSectionDrop={handlePreviewSectionDrop}
+              />
             </div>
           </div>
 
@@ -332,6 +483,49 @@ export default function EditorClient({ user }: Props) {
           </p>
         </div>
       </div>
+
+      {pdfPreviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6">
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#E8E4DC] px-5 py-4">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-[#2B2A28]">PDF Ön İzleme</h3>
+                <p className="mt-1 text-xs text-[#7A766E]">CV çıktısını kontrol edin, onayladığınızda PDF indirme başlar.</p>
+              </div>
+              <button
+                onClick={() => setPdfPreviewOpen(false)}
+                className="rounded-lg border border-[#E8E4DC] px-3 py-1.5 text-sm font-semibold text-[#2B2A28] hover:border-[#B08D57]"
+              >
+                Kapat
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto bg-[#EDEAE3] p-6">
+              <div className="mx-auto origin-top shadow-2xl" style={{ width: 794, minHeight: 1123 }}>
+                <CVRenderer cv={cv} />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-[#E8E4DC] px-5 py-4">
+              <button
+                onClick={() => setPdfPreviewOpen(false)}
+                className="rounded-lg border border-[#E8E4DC] px-4 py-2 text-sm font-semibold text-[#2B2A28] hover:border-[#B08D57]"
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => {
+                  setPdfPreviewOpen(false);
+                  void handleExportPDF();
+                }}
+                disabled={exporting}
+                className="flex items-center gap-2 rounded-lg bg-[#B08D57] px-4 py-2 text-sm font-semibold text-white hover:bg-[#9a7a4a] disabled:opacity-60"
+              >
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Onayla ve İndir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

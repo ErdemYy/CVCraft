@@ -7,30 +7,69 @@ import ClassicTemplate from "./ClassicTemplate";
 import CreativeTemplate from "./CreativeTemplate";
 import MinimalTemplate from "./MinimalTemplate";
 import ProfessionalTemplate from "./ProfessionalTemplate";
+import { PreviewEditProvider } from "./PreviewEditContext";
 
 interface Props {
   cv: CVData;
   scale?: number;
+  editable?: boolean;
+  activeFieldId?: string | null;
+  onActiveFieldChange?: (fieldId: string | null) => void;
+  onEditableFieldChange?: (fieldId: string, value: string, html?: string) => void;
+  onRichTextChange?: (fieldId: string, html: string) => void;
+  onSectionDrop?: (sourceId: string, targetId: string, position: "before" | "after") => void;
 }
 
-export default function CVRenderer({ cv, scale = 1 }: Props) {
+export default function CVRenderer({
+  cv,
+  scale = 1,
+  editable = false,
+  activeFieldId = null,
+  onActiveFieldChange,
+  onEditableFieldChange,
+  onRichTextChange,
+  onSectionDrop,
+}: Props) {
+  let template: React.ReactNode;
+
   switch (cv.templateId) {
     case "modern":
-      return <ModernTemplate cv={cv} scale={scale} />;
+      template = <ModernTemplate cv={cv} scale={scale} />;
+      break;
     case "classic":
-      return <ClassicTemplate cv={cv} scale={scale} />;
+      template = <ClassicTemplate cv={cv} scale={scale} />;
+      break;
     case "creative":
-      return <CreativeTemplate cv={cv} scale={scale} />;
+      template = <CreativeTemplate cv={cv} scale={scale} />;
+      break;
     case "minimal":
-      return <MinimalTemplate cv={cv} scale={scale} />;
+      template = <MinimalTemplate cv={cv} scale={scale} />;
+      break;
     case "ats-pro":
     case "executive":
     case "corporate":
     case "consultant":
     case "editorial":
     case "tech-focus":
-      return <ProfessionalTemplate cv={cv} scale={scale} />;
+      template = <ProfessionalTemplate cv={cv} scale={scale} />;
+      break;
     default:
-      return <ModernTemplate cv={cv} scale={scale} />;
+      template = <ModernTemplate cv={cv} scale={scale} />;
   }
+
+  return (
+    <PreviewEditProvider
+      editable={editable}
+      activeFieldId={activeFieldId}
+      globalStyle={cv.theme.globalTextStyle}
+      textStyles={cv.theme.textStyles}
+      richText={cv.theme.richText}
+      onActiveFieldChange={onActiveFieldChange}
+      onFieldChange={onEditableFieldChange}
+      onRichTextChange={onRichTextChange}
+      onSectionDrop={onSectionDrop}
+    >
+      {template}
+    </PreviewEditProvider>
+  );
 }

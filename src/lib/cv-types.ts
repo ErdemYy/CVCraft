@@ -1,3 +1,41 @@
+export type TextAlignment = "left" | "center" | "right" | "justify";
+export type ListStyleType = "disc" | "circle" | "square" | "dash" | "decimal" | "alpha";
+
+export interface CVTextStyle {
+  fontFamily: string;
+  fontSize: number;
+  isBold: boolean;
+  isItalic: boolean;
+  isUnderlined: boolean;
+  isStrikethrough: boolean;
+  textColor: string;
+  alignment: TextAlignment;
+  lineHeight: number;
+  letterSpacing: number;
+  listStyle?: ListStyleType | null;
+  indentLevel?: number;
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+}
+
+export type PhotoShape = "circle" | "square" | "rounded" | "portrait" | "landscape";
+
+export interface CvPhotoSettings {
+  imagePath?: string;
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+  rotation: number;
+  flipHorizontal: boolean;
+  flipVertical: boolean;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  grayscale: boolean;
+  shape: PhotoShape;
+  borderRadius: number;
+  borderWidth: number;
+}
+
 export interface PersonalInfo {
   firstName: string;
   lastName: string;
@@ -8,8 +46,14 @@ export interface PersonalInfo {
   website: string;
   linkedin: string;
   github: string;
+  birthDate: string;
+  nationality: string;
+  maritalStatus: string;
+  militaryStatus: string;
+  drivingLicense: string;
   summary: string;
   photo: string; // base64 or url
+  photoSettings: CvPhotoSettings;
 }
 
 export interface ExperienceItem {
@@ -72,6 +116,43 @@ export interface CertificateItem {
   url: string;
 }
 
+export interface InterestItem {
+  id: string;
+  name: string;
+}
+
+export interface CustomSectionItem {
+  id: string;
+  title: string;
+  description: string;
+}
+
+export interface CustomSection {
+  id: string;
+  title: string;
+  items: CustomSectionItem[];
+}
+
+export type SectionKey =
+  | "experience"
+  | "education"
+  | "skills"
+  | "languages"
+  | "projects"
+  | "references"
+  | "certificates"
+  | "interests";
+
+export type SectionId = SectionKey | string;
+
+export interface SectionMeta {
+  id: SectionId;
+  type: SectionKey | "custom";
+  title: string;
+  visible: boolean;
+  isCustom?: boolean;
+}
+
 export interface CVSections {
   experience: ExperienceItem[];
   education: EducationItem[];
@@ -80,9 +161,10 @@ export interface CVSections {
   projects: ProjectItem[];
   references: ReferenceItem[];
   certificates: CertificateItem[];
+  interests: InterestItem[];
+  customSections: CustomSection[];
+  sectionMeta: Record<string, SectionMeta>;
 }
-
-export type SectionKey = keyof CVSections;
 
 export const DEFAULT_SECTION_ORDER: SectionKey[] = [
   "experience",
@@ -92,6 +174,7 @@ export const DEFAULT_SECTION_ORDER: SectionKey[] = [
   "projects",
   "certificates",
   "references",
+  "interests",
 ];
 
 export interface CVTheme {
@@ -101,6 +184,9 @@ export interface CVTheme {
   fontSize: string;
   spacing: string;
   photoShape: "circle" | "square" | "rounded";
+  globalTextStyle: Partial<CVTextStyle>;
+  textStyles: Record<string, Partial<CVTextStyle>>;
+  richText: Record<string, string>;
 }
 
 export interface CVData {
@@ -109,7 +195,7 @@ export interface CVData {
   templateId: string;
   personalInfo: PersonalInfo;
   sections: CVSections;
-  sectionOrder: SectionKey[];
+  sectionOrder: SectionId[];
   theme: CVTheme;
 }
 
@@ -123,8 +209,28 @@ export const DEFAULT_PERSONAL_INFO: PersonalInfo = {
   website: "",
   linkedin: "",
   github: "",
+  birthDate: "",
+  nationality: "",
+  maritalStatus: "",
+  militaryStatus: "",
+  drivingLicense: "",
   summary: "",
   photo: "",
+  photoSettings: {
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+    rotation: 0,
+    flipHorizontal: false,
+    flipVertical: false,
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    grayscale: false,
+    shape: "circle",
+    borderRadius: 50,
+    borderWidth: 0,
+  },
 };
 
 export const DEFAULT_SECTIONS: CVSections = {
@@ -135,6 +241,9 @@ export const DEFAULT_SECTIONS: CVSections = {
   projects: [],
   references: [],
   certificates: [],
+  interests: [],
+  customSections: [],
+  sectionMeta: {},
 };
 
 export const DEFAULT_THEME: CVTheme = {
@@ -144,14 +253,18 @@ export const DEFAULT_THEME: CVTheme = {
   fontSize: "medium",
   spacing: "normal",
   photoShape: "circle",
+  globalTextStyle: {},
+  textStyles: {},
+  richText: {},
 };
 
 export const SECTION_LABELS: Record<SectionKey, string> = {
-  experience: "Deneyim",
+  experience: "İş Deneyimi",
   education: "Eğitim",
   skills: "Yetenekler",
   languages: "Diller",
   projects: "Projeler",
   references: "Referanslar",
   certificates: "Sertifikalar",
+  interests: "İlgi Alanları",
 };

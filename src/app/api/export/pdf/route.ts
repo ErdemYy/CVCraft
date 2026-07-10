@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { existsSync } from "fs";
-import { createPrintToken } from "@/lib/print-cache";
 import { getSession } from "@/lib/session";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const BROWSER_PATHS = [
   process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -40,18 +40,8 @@ async function getBrowserLaunchOptions() {
 
 function getContentDispositionFileName(fileName: string) {
   const asciiName = fileName
-    .replace(/ı/g, "i")
-    .replace(/İ/g, "I")
-    .replace(/ğ/g, "g")
-    .replace(/Ğ/g, "G")
-    .replace(/ü/g, "u")
-    .replace(/Ü/g, "U")
-    .replace(/ş/g, "s")
-    .replace(/Ş/g, "S")
-    .replace(/ö/g, "o")
-    .replace(/Ö/g, "O")
-    .replace(/ç/g, "c")
-    .replace(/Ç/g, "C")
+    .replace(/\u0131/g, "i")
+    .replace(/\u0130/g, "I")
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\x20-\x7E]/g, "")
@@ -92,14 +82,20 @@ export async function POST(req: NextRequest) {
       ? `${firstName}_${lastName}_CV`.replace(/\s+/g, "_")
       : "CV";
 
-    const printToken = createPrintToken(cvData);
     const printUrl = new URL("/print", req.nextUrl.origin);
-    printUrl.searchParams.set("token", printToken);
+    const printPayload = JSON.stringify({ version: 1, cv: cvData });
 
-    await page.goto(printUrl.toString(), { waitUntil: "networkidle0", timeout: 30000 });
-    await page.waitForSelector("[data-print-ready='true']", { timeout: 10000 });
+    await page.evaluateOnNewDocument((payload) => {
+      window.name = payload;
+    }, printPayload);
+    await page.goto(printUrl.toString(), { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForSelector("[data-print-ready='true']", { timeout: 30000 });
     await page.evaluateHandle("document.fonts.ready");
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await page.waitForFunction(
+      () => Array.from(document.images).every((image) => image.complete),
+      { timeout: 15000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -111,11 +107,15 @@ export async function POST(req: NextRequest) {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": getContentDispositionFileName(fileName),
+        "Cache-Control": "private, no-store",
       },
     });
   } catch (error) {
     console.error("PDF export error:", error);
-    return NextResponse.json({ error: "PDF oluşturulamadı" }, { status: 500 });
+    return NextResponse.json(
+      { error: "PDF şu anda oluşturulamadı. Lütfen tekrar deneyin." },
+      { status: 500 },
+    );
   } finally {
     await browser?.close();
   }

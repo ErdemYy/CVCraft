@@ -3,11 +3,13 @@
 import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Eye, EyeOff, Lock, LogIn, Mail, User, UserPlus } from "lucide-react";
+import { useCVStore } from "@/store/cv-store";
 
 type AuthMode = "login" | "register";
 
 export default function LoginForm() {
   const router = useRouter();
+  const resetCV = useCVStore((state) => state.resetCV);
   const [mode, setMode] = useState<AuthMode>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -45,6 +47,7 @@ export default function LoginForm() {
         return;
       }
 
+      resetCV();
       router.push(data.user.role === "admin" ? "/admin" : "/dashboard");
       router.refresh();
     } catch {

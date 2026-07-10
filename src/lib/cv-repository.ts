@@ -7,8 +7,12 @@ import {
   DEFAULT_SECTION_ORDER,
   DEFAULT_SECTIONS,
   DEFAULT_THEME,
+  SECTION_LABELS,
   type CVData,
+  type CustomSection,
+  type SectionId,
   type SectionKey,
+  type SectionMeta,
 } from "@/lib/cv-types";
 import type { CVPayload, CVRecord } from "@/lib/cv-record";
 import { nanoid } from "@/lib/nanoid";
@@ -27,21 +31,89 @@ function toIsoDate(value: unknown, fallback = new Date()) {
   return Number.isNaN(date.getTime()) ? fallback.toISOString() : date.toISOString();
 }
 
-function normalizeSectionOrder(value: unknown): SectionKey[] {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeCustomSections(value: unknown): CustomSection[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter(isRecord)
+    .map((section) => ({
+      id: String(section.id || nanoid()),
+      title: String(section.title || "Özel Bölüm"),
+      items: Array.isArray(section.items)
+        ? section.items.filter(isRecord).map((item) => ({
+          id: String(item.id || nanoid()),
+          title: String(item.title || ""),
+          description: String(item.description || ""),
+        }))
+        : [],
+    }));
+}
+
+function normalizeSectionMeta(value: unknown, customSections: CustomSection[]): Record<string, SectionMeta> {
+  const meta: Record<string, SectionMeta> = {};
+
+  if (isRecord(value)) {
+    for (const [id, raw] of Object.entries(value)) {
+      if (!isRecord(raw)) continue;
+      const isCustom = String(raw.type) === "custom" || id.startsWith("custom_");
+      const type = isCustom ? "custom" : VALID_SECTION_KEYS.has(id as SectionKey) ? id as SectionKey : null;
+      if (!type) continue;
+
+      meta[id] = {
+        id,
+        type,
+        title: String(raw.title || (type === "custom" ? "Özel Bölüm" : SECTION_LABELS[type])),
+        visible: raw.visible !== false,
+        isCustom,
+      };
+    }
+  }
+
+  for (const section of customSections) {
+    meta[section.id] = {
+      id: section.id,
+      type: "custom",
+      title: meta[section.id]?.title || section.title || "Özel Bölüm",
+      visible: meta[section.id]?.visible ?? true,
+      isCustom: true,
+    };
+  }
+
+  return meta;
+}
+
+function normalizeSectionOrder(value: unknown, customSections: CustomSection[]): SectionId[] {
+  const validCustomIds = new Set(customSections.map((section) => section.id));
   if (!Array.isArray(value)) return [...DEFAULT_SECTION_ORDER];
-  const filtered = value.filter((key): key is SectionKey => VALID_SECTION_KEYS.has(key as SectionKey));
+  const filtered = value.filter((key): key is SectionId => {
+    if (typeof key !== "string") return false;
+    return VALID_SECTION_KEYS.has(key as SectionKey) || validCustomIds.has(key);
+  });
   return filtered.length ? filtered : [...DEFAULT_SECTION_ORDER];
 }
 
 function normalizeCV(input: Partial<CVRecord> & Partial<CVData>, userId: string): CVRecord {
   const now = new Date();
+  const customSections = normalizeCustomSections(input.sections?.customSections);
+  const sectionMeta = normalizeSectionMeta(input.sections?.sectionMeta, customSections);
 
   return {
     id: input.id || nanoid(),
     userId,
     title: input.title || "Benim CV'm",
     templateId: input.templateId || "modern",
-    personalInfo: { ...DEFAULT_PERSONAL_INFO, ...(input.personalInfo ?? {}) },
+    personalInfo: {
+      ...DEFAULT_PERSONAL_INFO,
+      ...(input.personalInfo ?? {}),
+      photoSettings: {
+        ...DEFAULT_PERSONAL_INFO.photoSettings,
+        ...(input.personalInfo?.photoSettings ?? {}),
+      },
+    },
     sections: {
       experience: [...(input.sections?.experience ?? DEFAULT_SECTIONS.experience)],
       education: [...(input.sections?.education ?? DEFAULT_SECTIONS.education)],
@@ -50,9 +122,18 @@ function normalizeCV(input: Partial<CVRecord> & Partial<CVData>, userId: string)
       projects: [...(input.sections?.projects ?? DEFAULT_SECTIONS.projects)],
       references: [...(input.sections?.references ?? DEFAULT_SECTIONS.references)],
       certificates: [...(input.sections?.certificates ?? DEFAULT_SECTIONS.certificates)],
+      interests: [...(input.sections?.interests ?? DEFAULT_SECTIONS.interests)],
+      customSections,
+      sectionMeta,
     },
-    sectionOrder: normalizeSectionOrder(input.sectionOrder),
-    theme: { ...DEFAULT_THEME, ...(input.theme ?? {}) },
+    sectionOrder: normalizeSectionOrder(input.sectionOrder, customSections),
+    theme: {
+      ...DEFAULT_THEME,
+      ...(input.theme ?? {}),
+      globalTextStyle: { ...DEFAULT_THEME.globalTextStyle, ...(input.theme?.globalTextStyle ?? {}) },
+      textStyles: { ...DEFAULT_THEME.textStyles, ...(input.theme?.textStyles ?? {}) },
+      richText: { ...DEFAULT_THEME.richText, ...(input.theme?.richText ?? {}) },
+    },
     createdAt: toIsoDate(input.createdAt, now),
     updatedAt: toIsoDate(input.updatedAt, now),
   };

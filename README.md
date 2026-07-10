@@ -8,10 +8,18 @@ CVCraft; ATS uyumlu şablonlar, gerçek zamanlı önizleme, kayıtlı CV yöneti
 
 - 10 profesyonel CV şablonu: Modern, Klasik, Yaratıcı, Minimal, ATS Pro, Executive, Corporate, Consultant, Editorial, Tech Focus
 - Gerçek zamanlı CV önizleme ve şablonlar arası veri kaybı olmadan geçiş
-- Kişisel bilgiler, deneyim, eğitim, yetenekler, diller, projeler, sertifikalar ve referans yönetimi
-- Bölüm sıralama, tema rengi, tipografi, yazı boyutu ve fotoğraf biçimi ayarları
+- CV ön izlemesi üzerinden doğrudan metin düzenleme, seçili metne biçim uygulama ve bölüm sürükle-bırak
+- Gelişmiş metin araç çubuğu: çalışan font arama, font, boyut, kalın, italik, altı çizili, üstü çizili, renk, hizalama, liste, girinti, satır ve harf aralığı
+- Times New Roman dahil 20 profesyonel font seçeneği ve PDF uyumlu font fallback sistemi
+- Kişisel bilgiler, deneyim, eğitim, yetenekler, diller, projeler, sertifikalar, referanslar ve ilgi alanları yönetimi
+- Doğum tarihi, uyruk, medeni durum, askerlik durumu ve ehliyet gibi isteğe bağlı kişisel detay alanları
+- Sürükle-bırak bölüm sıralama, özel bölüm ekleme, bölüm başlığı değiştirme, gizle/göster, çoğaltma ve silme işlemleri
+- Gelişmiş fotoğraf düzenleyici: kırpma, zoom, konum, döndürme, flip, filtre, şekil ve kenarlık ayarları
+- 50 adımlı undo/redo geçmişi, manuel kaydetme akışı ve kaydedilmemiş değişiklik uyarısı
+- Tema rengi, tipografi, yazı boyutu ve fotoğraf biçimi ayarları
 - Dashboard üzerinden CV oluşturma, düzenleme ve profesyonel onay modalı ile silme
 - Admin panelinde CV ve şablon kullanım görünümü
+- PDF indirme öncesi profesyonel ön izleme ve onay akışı
 - Pixel-perfect PDF export
 - Next.js App Router, React 19, TypeScript, Tailwind CSS 4 ve Zustand tabanlı modern frontend mimarisi
 - PostgreSQL + Drizzle ORM desteği, lokal geliştirmede dosya tabanlı fallback
@@ -61,7 +69,7 @@ USER_PASSWORD="change-me"
 USER_DISPLAY_NAME="Kullanıcı"
 ```
 
-`DATABASE_URL` verilmezse uygulama lokal geliştirme sırasında `.data/cvs.json` dosyasını kullanır. Vercel gibi serverless ortamlarda kalıcı veri için PostgreSQL bağlantısı önerilir.
+`DATABASE_URL` verilmezse uygulama lokal geliştirme sırasında `.data/cvs.json` dosyasını kullanır. Vercel gibi serverless ortamlarda manuel `Kaydet` işlemi kullanıcıya ait cihaz deposuna güvenli biçimde geri döner ve kayıtlar `CV'lerim` ekranında kullanılmaya devam eder. Hesaplar ve cihazlar arasında kalıcı bulut kaydı için PostgreSQL bağlantısı önerilir.
 
 ## Veritabanı
 
@@ -102,7 +110,7 @@ src/db/schema.ts
 5. Veritabanı tablosunu oluşturmak için lokal terminalden aynı `DATABASE_URL` ile `npm run db:push` çalıştırın.
 6. Deploy edin.
 
-PDF export için Vercel tarafında ek Chrome kurulumu gerekmez; uygulama yerel Chrome bulamazsa `@sparticuz/chromium` fallback kullanır.
+PDF export için Vercel tarafında ek Chrome kurulumu gerekmez; uygulama yerel Chrome bulamazsa `@sparticuz/chromium` fallback kullanır. Yazdırma verisi sunucu belleğinde tutulmadığı için PDF akışı farklı Vercel function örneklerinde de çalışır.
 
 ## Proje Yapısı
 
@@ -126,7 +134,7 @@ src/
 ## Üretim Notları
 
 - Mevcut auth akışı MVP/prototip seviyesi için hazırlanmıştır. Canlı ortamda güçlü parolalar ve mümkünse gerçek auth sağlayıcısı kullanılmalıdır.
-- Serverless ortamda `.data` kalıcı değildir; canlı kullanımda `DATABASE_URL` zorunlu kabul edilmelidir.
+- Serverless ortamda `.data` kalıcı değildir. Veritabanı yokken manuel cihaz kaydı devreye girer; hesaplar ve cihazlar arasında bulut senkronizasyonu için `DATABASE_URL` gereklidir.
 - PDF export node runtime üzerinde çalışır ve Puppeteer tabanlıdır.
 - Şablonlar ortak `CVData` modeliyle çalışır; yeni şablon eklerken `src/lib/templates.ts` ve `src/components/templates/CVRenderer.tsx` birlikte güncellenmelidir.
 

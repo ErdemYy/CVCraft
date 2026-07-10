@@ -1,6 +1,7 @@
 "use client";
 
 import { useCVStore } from "@/store/cv-store";
+import { FONT_OPTIONS, resolveFontFamily } from "@/lib/font-options";
 
 const COLOR_PRESETS = [
   { label: "Bronz", value: "#B08D57" },
@@ -57,11 +58,8 @@ export default function ThemePanel() {
       {/* Font */}
       <div>
         <label className="text-xs text-[#7A766E] block mb-2">Yazı Tipi</label>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { id: "inter", label: "Inter", desc: "Modern, sans-serif" },
-            { id: "serif", label: "Georgia", desc: "Klasik, serif" },
-          ].map((f) => (
+        <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1 scrollbar-thin">
+          {FONT_OPTIONS.map((f) => (
             <button
               key={f.id}
               onClick={() => setTheme({ fontFamily: f.id })}
@@ -71,10 +69,10 @@ export default function ThemePanel() {
                   : "border-gray-200 hover:border-gray-300"
               }`}
             >
-              <div className="text-sm font-semibold text-[#2B2A28]" style={{ fontFamily: f.id === "serif" ? "Georgia, serif" : "Inter, sans-serif" }}>
+              <div className="text-sm font-semibold text-[#2B2A28]" style={{ fontFamily: resolveFontFamily(f.id) }}>
                 {f.label}
               </div>
-              <div className="text-[10px] text-[#7A766E]">{f.desc}</div>
+              <div className="text-[10px] text-[#7A766E]">{f.category === "serif" ? "Serif" : f.category === "mono" ? "Monospace" : "Sans-serif"}</div>
             </button>
           ))}
         </div>

@@ -9,6 +9,7 @@ import { Plus, FileText, Trash2, Edit2, LogOut } from "lucide-react";
 import { useCVStore } from "@/store/cv-store";
 import { TEMPLATES } from "@/lib/templates";
 import type { CVRecord } from "@/lib/cv-record";
+import { deleteDeviceCV, isDeviceCVId, listDeviceCVs } from "@/lib/device-cv-storage";
 
 interface Props {
   user: AuthUser;
@@ -25,21 +26,34 @@ export default function DashboardClient({ user }: Props) {
   useEffect(() => {
     const fetchCVs = async () => {
       setLoading(true);
+      const deviceCVs = await listDeviceCVs(user.id);
+      let cloudCVs: CVRecord[] = [];
+
       try {
         const res = await fetch("/api/cvs");
         if (res.ok) {
           const data = await res.json();
-          setCVList(data.cvs || []);
+          cloudCVs = data.cvs || [];
+        } else if (res.status === 401) {
+          router.push("/login");
         }
       } catch {
-        console.error("CV yüklenemedi");
+        // Device saves remain available when cloud storage cannot be reached.
       } finally {
+        const merged = new Map<string, CVRecord>();
+        deviceCVs.forEach((cv) => merged.set(cv.id, cv));
+        cloudCVs.forEach((cv) => merged.set(cv.id, cv));
+        setCVList(
+          Array.from(merged.values()).sort(
+            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+          ),
+        );
         setLoading(false);
       }
     };
 
     fetchCVs();
-  }, []);
+  }, [router, user.id]);
 
   const handleCreateNew = () => {
     resetCV();
@@ -64,7 +78,11 @@ export default function DashboardClient({ user }: Props) {
 
     setDeletingId(cvToDelete.id);
     try {
-      await fetch(`/api/cvs/${cvToDelete.id}`, { method: "DELETE" });
+      if (!isDeviceCVId(cvToDelete.id)) {
+        const response = await fetch(`/api/cvs/${cvToDelete.id}`, { method: "DELETE" });
+        if (!response.ok && response.status !== 404) return;
+      }
+      await deleteDeviceCV(user.id, cvToDelete.id);
       setCVList((prev) => prev.filter((c) => c.id !== cvToDelete.id));
       setCvToDelete(null);
     } finally {
@@ -74,6 +92,7 @@ export default function DashboardClient({ user }: Props) {
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
+    resetCV();
     router.push("/");
     router.refresh();
   };
