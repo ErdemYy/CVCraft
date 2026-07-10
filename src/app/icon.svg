@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CVCraft">
+  <defs>
+    <linearGradient id="bg" x1="10" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F7EFE0" />
+      <stop offset="0.55" stop-color="#C7A064" />
+      <stop offset="1" stop-color="#7A5A2C" />
+    </linearGradient>
+    <linearGradient id="paper" x1="20" y1="10" x2="44" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" />
+      <stop offset="1" stop-color="#EFE7DA" />
+    </linearGradient>
+    <linearGradient id="gold" x1="14" y1="12" x2="45" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D5B173" />
+      <stop offset="1" stop-color="#A37A3C" />
+    </linearGradient>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#2B2A28" flood-opacity="0.28" />
+    </filter>
+    <filter id="softShadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#2B2A28" flood-opacity="0.18" />
+    </filter>
+    <style>
+      @media (prefers-reduced-motion: no-preference) {
+        .stack {
+          animation: float 3.8s ease-in-out infinite;
+          transform-origin: 32px 32px;
+        }
+        .glint {
+          animation: glint 2.6s ease-in-out infinite;
+          transform-origin: 46px 17px;
+        }
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0) rotate(-4deg); }
+        50% { transform: translateY(-2px) rotate(-1deg); }
+      }
+      @keyframes glint {
+        0%, 100% { opacity: .42; transform: scale(.88); }
+        45% { opacity: 1; transform: scale(1.08); }
+      }
+    </style>
+  </defs>
+
+  <rect width="64" height="64" rx="18" fill="url(#bg)" />
+  <path d="M17 50.5C25 54.2 40.6 54 48.8 48.9C54.1 45.6 55.7 39.8 52.6 35.3C49.4 30.7 43 31 36.7 27.8C30.4 24.7 28.1 18 21.8 18.8C14 19.9 10 30.8 12.7 39.2C14.1 43.6 13.8 49 17 50.5Z" fill="#FFF8EB" opacity="0.2" />
+
+  <g class="stack" filter="url(#shadow)">
+    <rect x="22" y="12" width="29" height="39" rx="5" fill="#D8C7A8" transform="rotate(8 36.5 31.5)" opacity="0.8" />
+    <rect x="17" y="12" width="30" height="40" rx="5" fill="#F5ECDD" transform="rotate(3 32 32)" />
+    <rect x="14" y="12" width="31" height="42" rx="6" fill="url(#paper)" transform="rotate(-7 29.5 33)" />
+    <path d="M16.4 17.8C16 14.7 18.5 12 21.6 12h6.2v40.5H19c-2.4 0-4.4-1.7-4.8-4.1L11.6 24c-.3-2.1 1.1-4 3.2-4.3l1.6-.2v-1.7Z" fill="url(#gold)" transform="rotate(-7 20 32)" />
+    <rect x="29.5" y="22" width="12.5" height="3.2" rx="1.6" fill="#2B2A28" transform="rotate(-7 35.75 23.6)" />
+    <rect x="29" y="29" width="14" height="2.1" rx="1.05" fill="#B08D57" transform="rotate(-7 36 30.05)" />
+    <rect x="28.5" y="34" width="12" height="1.8" rx=".9" fill="#8C8378" transform="rotate(-7 34.5 34.9)" />
+    <rect x="28" y="39" width="15" height="1.8" rx=".9" fill="#8C8378" transform="rotate(-7 35.5 39.9)" />
+    <rect x="18.8" y="19" width="7.7" height="7.2" rx="1.4" fill="#FFF8EA" transform="rotate(-7 22.65 22.6)" />
+    <text x="19.2" y="47.2" transform="rotate(-7 28 44)" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="10.5" font-weight="900" letter-spacing="-.4">CV</text>
+  </g>
+
+  <g class="glint" filter="url(#softShadow)">
+    <path d="M47 10.5l1.7 4 4.1 1.6-4.1 1.7-1.7 4-1.6-4-4.1-1.7 4.1-1.6 1.6-4Z" fill="#FFF8E8" />
+  </g>
+</svg>
