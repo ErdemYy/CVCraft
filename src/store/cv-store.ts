@@ -10,6 +10,7 @@ import {
   type CVTextStyle,
   type CustomSectionItem,
   type SectionId,
+  type SectionColumn,
   type SectionKey,
   DEFAULT_PERSONAL_INFO,
   DEFAULT_THEME,
@@ -36,6 +37,7 @@ interface CVStore {
   setSectionOrder: (order: SectionId[]) => void;
   setSectionTitle: (sectionId: SectionId, title: string) => void;
   setSectionVisibility: (sectionId: SectionId, visible: boolean) => void;
+  setSectionColumn: (sectionId: SectionId, column: SectionColumn) => void;
   addSection: (sectionType: SectionKey | "custom", customTitle?: string) => SectionId | null;
   duplicateSection: (sectionId: SectionId) => SectionId | null;
   removeSection: (sectionId: SectionId) => void;
@@ -118,13 +120,14 @@ function cleanTitle(title: string, fallback: string) {
   return value || fallback;
 }
 
-function metaFor(sectionId: SectionId, title: string, visible = true, isCustom = false) {
+function metaFor(sectionId: SectionId, title: string, visible = true, isCustom = false, column?: SectionColumn) {
   return {
     id: sectionId,
     type: isCustom ? "custom" as const : sectionId as SectionKey,
     title,
     visible,
     isCustom,
+    column,
   };
 }
 
@@ -235,7 +238,13 @@ export const useCVStore = create<CVStore>()(
                 ),
                 sectionMeta: {
                   ...state.cv.sections.sectionMeta,
-                  [String(sectionId)]: metaFor(sectionId, nextTitle, state.cv.sections.sectionMeta[String(sectionId)]?.visible ?? true, isCustom),
+                  [String(sectionId)]: metaFor(
+                    sectionId,
+                    nextTitle,
+                    state.cv.sections.sectionMeta[String(sectionId)]?.visible ?? true,
+                    isCustom,
+                    state.cv.sections.sectionMeta[String(sectionId)]?.column,
+                  ),
                 },
               },
             });
@@ -250,10 +259,38 @@ export const useCVStore = create<CVStore>()(
                 ...state.cv.sections,
                 sectionMeta: {
                   ...state.cv.sections.sectionMeta,
-                  [String(sectionId)]: metaFor(sectionId, getSectionTitle(state.cv, sectionId), visible, isCustom),
+                  [String(sectionId)]: metaFor(
+                    sectionId,
+                    getSectionTitle(state.cv, sectionId),
+                    visible,
+                    isCustom,
+                    state.cv.sections.sectionMeta[String(sectionId)]?.column,
+                  ),
                 },
               },
             });
+        }),
+
+      setSectionColumn: (sectionId, column) =>
+        set((state) => {
+          const current = state.cv.sections.sectionMeta[String(sectionId)];
+          const isCustom = !isBuiltInSectionId(sectionId);
+          return commitCV(state, {
+            ...state.cv,
+            sections: {
+              ...state.cv.sections,
+              sectionMeta: {
+                ...state.cv.sections.sectionMeta,
+                [String(sectionId)]: metaFor(
+                  sectionId,
+                  getSectionTitle(state.cv, sectionId),
+                  current?.visible ?? true,
+                  isCustom,
+                  column,
+                ),
+              },
+            },
+          });
         }),
 
       addSection: (sectionType, customTitle) => {
@@ -266,7 +303,13 @@ export const useCVStore = create<CVStore>()(
                   ...state.cv.sections,
                   sectionMeta: {
                     ...state.cv.sections.sectionMeta,
-                    [sectionType]: metaFor(sectionType, getSectionTitle(state.cv, sectionType), true),
+                    [sectionType]: metaFor(
+                      sectionType,
+                      getSectionTitle(state.cv, sectionType),
+                      true,
+                      false,
+                      state.cv.sections.sectionMeta[sectionType]?.column,
+                    ),
                   },
                 },
               });
@@ -289,7 +332,7 @@ export const useCVStore = create<CVStore>()(
                   : state.cv.sections.customSections,
                 sectionMeta: {
                   ...state.cv.sections.sectionMeta,
-                  [String(createdId)]: metaFor(createdId, title, true, sectionType === "custom"),
+                  [String(createdId)]: metaFor(createdId, title, true, sectionType === "custom", sectionType === "custom" ? "main" : undefined),
                 },
               },
             });
@@ -317,7 +360,7 @@ export const useCVStore = create<CVStore>()(
                 ],
                 sectionMeta: {
                   ...state.cv.sections.sectionMeta,
-                  [createdId]: metaFor(createdId, title, true, true),
+                  [createdId]: metaFor(createdId, title, true, true, "main"),
                 },
               },
             });

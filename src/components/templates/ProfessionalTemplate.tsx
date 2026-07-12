@@ -3,10 +3,11 @@
 import React from "react";
 import { CVData, DEFAULT_THEME, type SectionId } from "@/lib/cv-types";
 import { getContactItems, getPersonalDetailItems } from "@/lib/personal-info";
-import { getCustomSection, getOrderedSectionIds, getSectionTitle, isBuiltInSectionId, isSectionVisible } from "@/lib/section-utils";
+import { getCustomSection, getOrderedSectionIds, getSectionsForColumn, getSectionTitle, isBuiltInSectionId, isSidebarRight } from "@/lib/section-utils";
 import { resolveFontFamily } from "@/lib/font-options";
 import CVPhoto from "@/components/templates/CVPhoto";
-import { DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
+import { ColumnDropZone, DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
+import CompactSidebarSection from "@/components/templates/CompactSidebarSection";
 
 interface Props {
   cv: CVData;
@@ -163,6 +164,7 @@ function PageShell({
 }) {
   return (
     <div
+      className="cv-document"
       style={{
         width: "794px",
         minHeight: "1123px",
@@ -173,7 +175,6 @@ function PageShell({
         transform: `scale(${scale})`,
         transformOrigin: "top left",
         boxSizing: "border-box",
-        overflow: "hidden",
       }}
     >
       {children}
@@ -259,13 +260,14 @@ function SplitLayout({
 }) {
   const { personalInfo: p } = cv;
   const font = getFontSize(cv.theme.fontSize);
-  const mainSections = getOrderedSectionIds(cv).filter((key) => key !== "skills" && key !== "languages");
-  const sidebarSectionIds = getOrderedSectionIds(cv).filter((key) => key === "skills" || key === "languages");
+  const mainSections = getSectionsForColumn(cv, "main");
+  const sidebarSectionIds = getSectionsForColumn(cv, "sidebar");
+  const sidebarOnRight = isSidebarRight(cv);
 
   return (
     <PageShell cv={cv} scale={scale} variant={variant}>
-      <div style={{ display: "grid", gridTemplateColumns: "252px 1fr", minHeight: "1123px" }}>
-        <aside style={{ backgroundColor: variant.sidebarBg, padding: "44px 26px", borderRight: `1px solid ${colors.accent}88` }}>
+      <div style={{ display: "grid", gridTemplateColumns: sidebarOnRight ? "1fr 252px" : "252px 1fr", gridTemplateAreas: sidebarOnRight ? '"main sidebar"' : '"sidebar main"', minHeight: "1123px" }}>
+        <ColumnDropZone as="aside" column="sidebar" style={{ gridArea: "sidebar", backgroundColor: variant.sidebarBg, padding: "44px 26px", borderRight: sidebarOnRight ? "0" : `1px solid ${colors.accent}88`, borderLeft: sidebarOnRight ? `1px solid ${colors.accent}88` : "0" }}>
           <div style={{ width: "38px", height: "5px", backgroundColor: colors.primary, marginBottom: "28px" }} />
           <h1 style={{ margin: 0, fontFamily: variant.headingFont, fontSize: "26px", lineHeight: 1.08, color: colors.secondary }}>
             <EditableText fieldId="personal.fullName" value={[p.firstName, p.lastName].filter(Boolean).join(" ")} singleLine placeholder="Ad Soyad" />
@@ -280,30 +282,20 @@ function SplitLayout({
           <ContactBlock cv={cv} colors={colors} compact />
           <PersonalDetailsBlock cv={cv} colors={colors} compact />
 
-          {sidebarSectionIds.map((sectionId) => {
-            if (sectionId === "skills" && isSectionVisible(cv, "skills") && cv.sections.skills.length > 0) {
-              return (
-                <DraggableSection key="skills" sectionId="skills">
-                  <SidebarTitle label={getSectionTitle(cv, "skills")} color={colors.primary} />
-                  <SkillList cv={cv} colors={colors} mode="bars" />
-                </DraggableSection>
-              );
-            }
+          {sidebarSectionIds.map((sectionId) => (
+            <CompactSidebarSection
+              key={sectionId}
+              cv={cv}
+              sectionId={sectionId}
+              titleColor={colors.primary}
+              textColor={colors.secondary}
+              mutedColor={colors.muted}
+              accentColor={colors.accent}
+            />
+          ))}
+        </ColumnDropZone>
 
-            if (sectionId === "languages" && isSectionVisible(cv, "languages") && cv.sections.languages.length > 0) {
-              return (
-                <DraggableSection key="languages" sectionId="languages">
-                  <SidebarTitle label={getSectionTitle(cv, "languages")} color={colors.primary} />
-                  <LanguageList cv={cv} colors={colors} />
-                </DraggableSection>
-              );
-            }
-
-            return null;
-          })}
-        </aside>
-
-        <main style={{ padding: "46px 44px 42px" }}>
+        <ColumnDropZone as="main" column="main" style={{ gridArea: "main", padding: "46px 44px 42px" }}>
           <div style={{ marginBottom: "24px", borderBottom: `1px solid ${colors.accent}`, paddingBottom: "18px" }}>
             <div style={{ fontSize: font.small, fontWeight: 900, letterSpacing: "2px", textTransform: "uppercase", color: colors.primary, marginBottom: "8px" }}>
               Profesyonel Profil
@@ -316,7 +308,7 @@ function SplitLayout({
           {mainSections.map((sectionId) => (
             <MainSection key={sectionId} sectionId={sectionId} cv={cv} colors={colors} variant={variant} />
           ))}
-        </main>
+        </ColumnDropZone>
       </div>
     </PageShell>
   );
@@ -333,10 +325,11 @@ function EditorialLayout({
   variant: Variant;
   colors: ReturnType<typeof getColors>;
 }) {
-  const { personalInfo: p, sections, theme } = cv;
+  const { personalInfo: p, theme } = cv;
   const photoShape = theme.photoShape === "square" ? "0" : theme.photoShape === "rounded" ? "16px" : "50%";
-  const mainSections = getOrderedSectionIds(cv).filter((key) => key !== "skills" && key !== "languages");
-  const sidebarSectionIds = getOrderedSectionIds(cv).filter((key) => key === "skills" || key === "languages");
+  const mainSections = getSectionsForColumn(cv, "main");
+  const sidebarSectionIds = getSectionsForColumn(cv, "sidebar");
+  const sidebarOnRight = isSidebarRight(cv, true);
 
   return (
     <PageShell cv={cv} scale={scale} variant={variant}>
@@ -365,40 +358,30 @@ function EditorialLayout({
           </div>
         </header>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 225px", gap: "34px", padding: "36px 54px 44px" }}>
-          <main>
+        <div style={{ display: "grid", gridTemplateColumns: sidebarOnRight ? "1fr 225px" : "225px 1fr", gridTemplateAreas: sidebarOnRight ? '"main sidebar"' : '"sidebar main"', gap: "34px", padding: "36px 54px 44px" }}>
+          <ColumnDropZone as="main" column="main" style={{ gridArea: "main" }}>
             {mainSections.map((key) => (
               <MainSection key={key} sectionId={key} cv={cv} colors={colors} variant={variant} />
             ))}
-          </main>
+          </ColumnDropZone>
 
-          <aside>
+          <ColumnDropZone as="aside" column="sidebar" style={{ gridArea: "sidebar" }}>
             <SidebarTitle label="İletişim" color={colors.primary} />
             <ContactBlock cv={cv} colors={colors} compact />
             <PersonalDetailsBlock cv={cv} colors={colors} compact />
 
-            {sidebarSectionIds.map((sectionId) => {
-              if (sectionId === "skills" && isSectionVisible(cv, "skills") && sections.skills.length > 0) {
-                return (
-                  <DraggableSection key="skills" sectionId="skills">
-                    <SidebarTitle label={getSectionTitle(cv, "skills")} color={colors.primary} />
-                    <SkillList cv={cv} colors={colors} mode="chips" />
-                  </DraggableSection>
-                );
-              }
-
-              if (sectionId === "languages" && isSectionVisible(cv, "languages") && sections.languages.length > 0) {
-                return (
-                  <DraggableSection key="languages" sectionId="languages">
-                    <SidebarTitle label={getSectionTitle(cv, "languages")} color={colors.primary} />
-                    <LanguageList cv={cv} colors={colors} />
-                  </DraggableSection>
-                );
-              }
-
-              return null;
-            })}
-          </aside>
+            {sidebarSectionIds.map((sectionId) => (
+              <CompactSidebarSection
+                key={sectionId}
+                cv={cv}
+                sectionId={sectionId}
+                titleColor={colors.primary}
+                textColor={colors.secondary}
+                mutedColor={colors.muted}
+                accentColor={colors.accent}
+              />
+            ))}
+          </ColumnDropZone>
         </div>
       </div>
     </PageShell>

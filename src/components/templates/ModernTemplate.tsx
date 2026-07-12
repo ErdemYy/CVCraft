@@ -3,10 +3,11 @@
 import React from "react";
 import { CVData } from "@/lib/cv-types";
 import { getContactItems, getPersonalDetailItems } from "@/lib/personal-info";
-import { getCustomSection, getOrderedSectionIds, getSectionTitle, isBuiltInSectionId, isSectionVisible } from "@/lib/section-utils";
+import { getCustomSection, getSectionsForColumn, getSectionTitle, isBuiltInSectionId, isSidebarRight } from "@/lib/section-utils";
 import { resolveFontFamily } from "@/lib/font-options";
 import CVPhoto from "@/components/templates/CVPhoto";
-import { DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
+import { ColumnDropZone, DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
+import CompactSidebarSection from "@/components/templates/CompactSidebarSection";
 
 interface Props {
   cv: CVData;
@@ -25,15 +26,19 @@ export default function ModernTemplate({ cv, scale = 1 }: Props) {
     : theme.photoShape === "rounded"
     ? "12px"
     : "50%";
-  const sidebarSectionIds = getOrderedSectionIds(cv).filter((key) => key === "skills" || key === "languages");
+  const sidebarSectionIds = getSectionsForColumn(cv, "sidebar");
+  const mainSectionIds = getSectionsForColumn(cv, "main");
+  const sidebarOnRight = isSidebarRight(cv);
 
   return (
     <div
+      className="cv-document"
       style={{
         width: "794px",
         minHeight: "1123px",
         backgroundColor: "#FAF9F6",
         display: "flex",
+        flexDirection: sidebarOnRight ? "row-reverse" : "row",
         fontFamily: resolveFontFamily(theme.fontFamily),
         fontSize: theme.fontSize === "small" ? "11px" : theme.fontSize === "large" ? "14px" : "12px",
         color: secondary,
@@ -42,7 +47,8 @@ export default function ModernTemplate({ cv, scale = 1 }: Props) {
       }}
     >
       {/* Left sidebar */}
-      <div
+      <ColumnDropZone
+        column="sidebar"
         style={{
           width: "240px",
           minHeight: "1123px",
@@ -97,58 +103,21 @@ export default function ModernTemplate({ cv, scale = 1 }: Props) {
           </div>
         )}
 
-        {sidebarSectionIds.map((sectionId) => {
-          if (sectionId === "skills" && isSectionVisible(cv, "skills") && sections.skills.length > 0) {
-            return (
-              <DraggableSection key="skills" sectionId="skills">
-              <div style={{ color: "#fff" }}>
-                <div style={{ fontSize: "10px", fontWeight: "700", letterSpacing: "1.5px", textTransform: "uppercase", opacity: 0.7, marginBottom: "10px" }}>
-                  {getSectionTitle(cv, "skills")}
-                </div>
-                {sections.skills.map((skill) => (
-                  <div key={skill.id} style={{ marginBottom: "8px" }}>
-                    <EditableText fieldId={`section:skills:item:${skill.id}:field:name`} value={skill.name} as="div" singleLine style={{ fontSize: "10px", marginBottom: "3px", opacity: 0.9 }} />
-                    <div style={{ height: "3px", backgroundColor: "rgba(255,255,255,0.2)", borderRadius: "2px" }}>
-                      <div
-                        style={{
-                          height: "3px",
-                          width: `${(skill.level / 5) * 100}%`,
-                          backgroundColor: "rgba(255,255,255,0.8)",
-                          borderRadius: "2px",
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              </DraggableSection>
-            );
-          }
-
-          if (sectionId === "languages" && isSectionVisible(cv, "languages") && sections.languages.length > 0) {
-            return (
-              <DraggableSection key="languages" sectionId="languages">
-              <div style={{ color: "#fff" }}>
-                <div style={{ fontSize: "10px", fontWeight: "700", letterSpacing: "1.5px", textTransform: "uppercase", opacity: 0.7, marginBottom: "10px" }}>
-                  {getSectionTitle(cv, "languages")}
-                </div>
-                {sections.languages.map((lang) => (
-                  <div key={lang.id} style={{ fontSize: "10px", marginBottom: "5px", opacity: 0.9, display: "flex", justifyContent: "space-between" }}>
-                    <EditableText fieldId={`section:languages:item:${lang.id}:field:name`} value={lang.name} singleLine />
-                    <EditableText fieldId={`section:languages:item:${lang.id}:field:level`} value={lang.level} singleLine style={{ opacity: 0.7 }} />
-                  </div>
-                ))}
-              </div>
-              </DraggableSection>
-            );
-          }
-
-          return null;
-        })}
-      </div>
+        {sidebarSectionIds.map((sectionId) => (
+          <CompactSidebarSection
+            key={sectionId}
+            cv={cv}
+            sectionId={sectionId}
+            titleColor="rgba(255,255,255,0.72)"
+            textColor="#FFFFFF"
+            mutedColor="rgba(255,255,255,0.72)"
+            accentColor="rgba(255,255,255,0.82)"
+          />
+        ))}
+      </ColumnDropZone>
 
       {/* Main content */}
-      <div style={{ flex: 1, padding: "36px 32px", display: "flex", flexDirection: "column", gap: "20px" }}>
+      <ColumnDropZone column="main" style={{ flex: 1, padding: "36px 32px", display: "flex", flexDirection: "column", gap: "20px" }}>
         {/* Summary */}
         {p.summary && (
           <div>
@@ -161,9 +130,7 @@ export default function ModernTemplate({ cv, scale = 1 }: Props) {
         )}
 
         {/* Dynamic sections */}
-        {getOrderedSectionIds(cv)
-          .filter((k) => k !== "skills" && k !== "languages")
-          .map((sectionId) => {
+        {mainSectionIds.map((sectionId) => {
             if (!isBuiltInSectionId(sectionId)) {
               const customSection = getCustomSection(cv, sectionId);
               if (!customSection) return null;
@@ -230,6 +197,27 @@ export default function ModernTemplate({ cv, scale = 1 }: Props) {
                     </div>
                   ))}
 
+                {key === "skills" && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "7px" }}>
+                    {sections.skills.map((skill) => (
+                      <span key={skill.id} style={{ border: `1px solid ${primary}55`, borderRadius: "4px", padding: "4px 8px", color: secondary, fontSize: "10px" }}>
+                        <EditableText fieldId={`section:skills:item:${skill.id}:field:name`} value={skill.name} singleLine />
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {key === "languages" && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "7px 14px" }}>
+                    {sections.languages.map((language) => (
+                      <span key={language.id} style={{ fontSize: "10px", color: secondary }}>
+                        <EditableText fieldId={`section:languages:item:${language.id}:field:name`} value={language.name} singleLine />
+                        <span style={{ color: "#888" }}> · {language.level}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 {key === "projects" &&
                   sections.projects.map((proj) => (
                     <div key={proj.id} style={{ marginBottom: "14px" }}>
@@ -273,7 +261,7 @@ export default function ModernTemplate({ cv, scale = 1 }: Props) {
               </DraggableSection>
             );
           })}
-      </div>
+      </ColumnDropZone>
     </div>
   );
 }

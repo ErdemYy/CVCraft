@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AuthUser } from "@/lib/auth";
 import { useCVStore } from "@/store/cv-store";
-import { type SectionId } from "@/lib/cv-types";
-import { getEditableSectionIds, getSectionTitle, isSectionVisible } from "@/lib/section-utils";
+import { type SectionColumn, type SectionId } from "@/lib/cv-types";
+import { getEditableSectionIds, getSectionColumn, getSectionTitle, isSectionVisible } from "@/lib/section-utils";
 import { deleteDeviceCV, saveDeviceCV } from "@/lib/device-cv-storage";
 import CVRenderer from "@/components/templates/CVRenderer";
 import PersonalInfoPanel from "./PersonalInfoPanel";
@@ -42,6 +42,7 @@ export default function EditorClient({ user }: Props) {
     setCustomSectionItems,
     setSectionTitle,
     setSectionOrder,
+    setSectionColumn,
     setTextStyle,
     setRichText,
     clearTextStyle,
@@ -61,7 +62,10 @@ export default function EditorClient({ user }: Props) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [activeTextField, setActiveTextField] = useState<string | null>(null);
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [previewHeight, setPreviewHeight] = useState(1123);
+  const previewContentRef = useRef<HTMLDivElement | null>(null);
   const previewScale = 0.55;
+  const previewPageCount = Math.max(1, Math.ceil(previewHeight / 1123));
   const editableSections = getEditableSectionIds(cv);
   const currentActiveSection = editableSections.includes(activeSection)
     ? activeSection
@@ -74,6 +78,23 @@ export default function EditorClient({ user }: Props) {
       setTemplate(templateParam);
     }
   }, [searchParams, setTemplate]);
+
+  useEffect(() => {
+    const content = previewContentRef.current;
+    if (!content) return;
+
+    const measure = () => {
+      const documentElement = content.firstElementChild as HTMLElement | null;
+      const nextHeight = Math.max(1123, content.scrollHeight, documentElement?.scrollHeight ?? 0);
+      setPreviewHeight(Math.ceil(nextHeight));
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+    if (content.firstElementChild) observer.observe(content.firstElementChild);
+    return () => observer.disconnect();
+  }, [cv.templateId]);
 
   const activeTextStyle = useMemo(
     () => activeTextField
@@ -225,8 +246,13 @@ export default function EditorClient({ user }: Props) {
     let insertIndex = targetIndex + (position === "after" ? 1 : 0);
     if (sourceIndex < insertIndex) insertIndex -= 1;
     currentOrder.splice(Math.max(0, Math.min(insertIndex, currentOrder.length)), 0, moved);
+    setSectionColumn(sourceId, getSectionColumn(cv, targetId));
     setSectionOrder(currentOrder);
-  }, [cv.sectionOrder, setSectionOrder]);
+  }, [cv, setSectionColumn, setSectionOrder]);
+
+  const handlePreviewColumnDrop = useCallback((sourceId: string, column: SectionColumn) => {
+    setSectionColumn(sourceId, column);
+  }, [setSectionColumn]);
 
   const handleExportPDF = async () => {
     setExporting(true);
@@ -441,20 +467,21 @@ export default function EditorClient({ user }: Props) {
           <div className="mb-4 flex items-center gap-2 text-xs text-[#7A766E]">
             <span>A4 Önizleme</span>
             <span className="px-2 py-0.5 bg-white rounded-full border border-[#E8E4DC]">
-              Gerçek boyut: 794 × 1123px
+              {previewPageCount === 1 ? "A4 · 1 sayfa" : `A4 · ${previewPageCount} sayfa`}
             </span>
           </div>
 
           {/* CV Preview */}
           <div
-            className="shadow-2xl rounded overflow-hidden flex-shrink-0"
+            className="shadow-2xl rounded flex-shrink-0 bg-white"
             style={{
               width: `${794 * previewScale}px`,
-              height: `${1123 * previewScale}px`,
+              height: `${previewHeight * previewScale}px`,
               position: "relative",
             }}
           >
             <div
+              ref={previewContentRef}
               style={{
                 position: "absolute",
                 top: 0,
@@ -473,8 +500,24 @@ export default function EditorClient({ user }: Props) {
                 onEditableFieldChange={handlePreviewFieldChange}
                 onRichTextChange={setRichText}
                 onSectionDrop={handlePreviewSectionDrop}
+                onSectionColumnDrop={handlePreviewColumnDrop}
               />
             </div>
+            {Array.from({ length: Math.max(0, previewPageCount - 1) }, (_, index) => (
+              <div
+                key={index}
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: `${(index + 1) * 1123 * previewScale}px`,
+                  borderTop: "1px dashed rgba(43,42,40,0.28)",
+                  zIndex: 15,
+                  pointerEvents: "none",
+                }}
+              />
+            ))}
           </div>
 
           {/* Scroll hint */}

@@ -144,6 +144,7 @@ export type SectionKey =
   | "interests";
 
 export type SectionId = SectionKey | string;
+export type SectionColumn = "sidebar" | "main";
 
 export interface SectionMeta {
   id: SectionId;
@@ -151,6 +152,7 @@ export interface SectionMeta {
   title: string;
   visible: boolean;
   isCustom?: boolean;
+  column?: SectionColumn;
 }
 
 export interface CVSections {
@@ -184,6 +186,7 @@ export interface CVTheme {
   fontSize: string;
   spacing: string;
   photoShape: "circle" | "square" | "rounded";
+  sidebarPosition: "auto" | "left" | "right";
   globalTextStyle: Partial<CVTextStyle>;
   textStyles: Record<string, Partial<CVTextStyle>>;
   richText: Record<string, string>;
@@ -253,6 +256,7 @@ export const DEFAULT_THEME: CVTheme = {
   fontSize: "medium",
   spacing: "normal",
   photoShape: "circle",
+  sidebarPosition: "auto",
   globalTextStyle: {},
   textStyles: {},
   richText: {},

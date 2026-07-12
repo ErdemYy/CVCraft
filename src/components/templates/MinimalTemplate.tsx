@@ -19,6 +19,7 @@ export default function MinimalTemplate({ cv, scale = 1 }: Props) {
 
   return (
     <div
+      className="cv-document"
       style={{
         width: "794px",
         minHeight: "1123px",

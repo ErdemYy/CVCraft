@@ -4,6 +4,7 @@ import {
   type CVData,
   type CustomSection,
   type SectionId,
+  type SectionColumn,
   type SectionKey,
   type SectionMeta,
 } from "@/lib/cv-types";
@@ -60,6 +61,22 @@ export function getSectionTitle(cv: CVData, id: SectionId) {
 
 export function isSectionVisible(cv: CVData, id: SectionId) {
   return getSectionMeta(cv, id).visible;
+}
+
+export function getSectionColumn(cv: CVData, id: SectionId): SectionColumn {
+  const configured = cv.sections.sectionMeta?.[String(id)]?.column;
+  if (configured === "sidebar" || configured === "main") return configured;
+  return id === "skills" || id === "languages" ? "sidebar" : "main";
+}
+
+export function getSectionsForColumn(cv: CVData, column: SectionColumn) {
+  return getOrderedSectionIds(cv).filter((id) => getSectionColumn(cv, id) === column);
+}
+
+export function isSidebarRight(cv: CVData, defaultRight = false) {
+  if (cv.theme.sidebarPosition === "right") return true;
+  if (cv.theme.sidebarPosition === "left") return false;
+  return defaultRight;
 }
 
 export function getSectionItemCount(cv: CVData, id: SectionId) {

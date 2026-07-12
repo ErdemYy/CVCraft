@@ -8,6 +8,7 @@ import CreativeTemplate from "./CreativeTemplate";
 import MinimalTemplate from "./MinimalTemplate";
 import ProfessionalTemplate from "./ProfessionalTemplate";
 import { PreviewEditProvider } from "./PreviewEditContext";
+import type { SectionColumn } from "@/lib/cv-types";
 
 interface Props {
   cv: CVData;
@@ -18,6 +19,7 @@ interface Props {
   onEditableFieldChange?: (fieldId: string, value: string, html?: string) => void;
   onRichTextChange?: (fieldId: string, html: string) => void;
   onSectionDrop?: (sourceId: string, targetId: string, position: "before" | "after") => void;
+  onSectionColumnDrop?: (sourceId: string, column: SectionColumn) => void;
 }
 
 export default function CVRenderer({
@@ -29,6 +31,7 @@ export default function CVRenderer({
   onEditableFieldChange,
   onRichTextChange,
   onSectionDrop,
+  onSectionColumnDrop,
 }: Props) {
   let template: React.ReactNode;
 
@@ -68,6 +71,7 @@ export default function CVRenderer({
       onFieldChange={onEditableFieldChange}
       onRichTextChange={onRichTextChange}
       onSectionDrop={onSectionDrop}
+      onSectionColumnDrop={onSectionColumnDrop}
     >
       {template}
     </PreviewEditProvider>

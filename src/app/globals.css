@@ -50,3 +50,32 @@
     border-radius: 2px;
   }
 }
+
+.cv-document {
+  height: auto;
+  overflow: visible;
+}
+
+[data-cv-section] {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@media print {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  .cv-document {
+    min-height: 1123px;
+    overflow: visible !important;
+  }
+
+  [data-cv-section] {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+}

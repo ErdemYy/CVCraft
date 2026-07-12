@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { FocusEvent, FormEvent, KeyboardEvent } from "react";
 import { resolveFontFamily } from "@/lib/font-options";
-import type { CVTextStyle, SectionId } from "@/lib/cv-types";
+import type { CVTextStyle, SectionColumn, SectionId } from "@/lib/cv-types";
 
 type EditableFieldChange = (fieldId: string, value: string, html?: string) => void;
 type RichTextChange = (fieldId: string, html: string) => void;
@@ -19,6 +19,7 @@ interface PreviewEditContextValue {
   onFieldChange?: EditableFieldChange;
   onRichTextChange?: RichTextChange;
   onSectionDrop?: (sourceId: SectionId, targetId: SectionId, position: SectionDropPosition) => void;
+  onSectionColumnDrop?: (sourceId: SectionId, column: SectionColumn) => void;
 }
 
 const PreviewEditContext = createContext<PreviewEditContextValue>({
@@ -40,6 +41,7 @@ export function PreviewEditProvider({
   onFieldChange,
   onRichTextChange,
   onSectionDrop,
+  onSectionColumnDrop,
 }: PreviewEditContextValue & { children: React.ReactNode }) {
   useEffect(() => {
     if (!editable) return;
@@ -58,8 +60,9 @@ export function PreviewEditProvider({
       onFieldChange,
       onRichTextChange,
       onSectionDrop,
+      onSectionColumnDrop,
     }),
-    [editable, activeFieldId, globalStyle, textStyles, richText, onActiveFieldChange, onFieldChange, onRichTextChange, onSectionDrop],
+    [editable, activeFieldId, globalStyle, textStyles, richText, onActiveFieldChange, onFieldChange, onRichTextChange, onSectionDrop, onSectionColumnDrop],
   );
 
   return <PreviewEditContext.Provider value={value}>{children}</PreviewEditContext.Provider>;
@@ -284,6 +287,7 @@ export function DraggableSection({
       onDragLeave={() => setDropPosition(null)}
       onDrop={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         const position = resolveDropPosition(event);
         setDropPosition(null);
         const source = event.dataTransfer.getData("text/cv-section");
@@ -346,5 +350,78 @@ export function DraggableSection({
       </button>
       {children}
     </div>
+  );
+}
+
+export function ColumnDropZone({
+  column,
+  as = "div",
+  children,
+  style,
+}: {
+  column: SectionColumn;
+  as?: React.ElementType;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
+  const context = useContext(PreviewEditContext);
+  const [dragOver, setDragOver] = useState(false);
+  const Tag = as as React.ElementType;
+
+  if (!context.editable || !context.onSectionColumnDrop) {
+    return <Tag style={style}>{children}</Tag>;
+  }
+
+  return (
+    <Tag
+      data-cv-column={column}
+      style={{
+        ...style,
+        position: style?.position ?? "relative",
+        outline: dragOver ? "2px solid rgba(176,141,87,0.7)" : "2px solid transparent",
+        outlineOffset: "-4px",
+        transition: "outline-color 160ms ease, background-color 160ms ease",
+      }}
+      onDragEnter={(event: React.DragEvent<HTMLElement>) => {
+        event.preventDefault();
+        setDragOver(true);
+      }}
+      onDragOver={(event: React.DragEvent<HTMLElement>) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        setDragOver(true);
+      }}
+      onDragLeave={(event: React.DragEvent<HTMLElement>) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOver(false);
+      }}
+      onDrop={(event: React.DragEvent<HTMLElement>) => {
+        event.preventDefault();
+        setDragOver(false);
+        const source = event.dataTransfer.getData("text/cv-section");
+        if (source) context.onSectionColumnDrop?.(source, column);
+      }}
+    >
+      {dragOver && (
+        <div
+          style={{
+            position: "absolute",
+            inset: "8px",
+            zIndex: 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1px dashed rgba(176,141,87,0.75)",
+            background: "rgba(255,255,255,0.84)",
+            color: "#7A5D34",
+            fontSize: "11px",
+            fontWeight: 700,
+            pointerEvents: "none",
+          }}
+        >
+          {column === "sidebar" ? "Yan sütuna bırak" : "Ana alana bırak"}
+        </div>
+      )}
+      {children}
+    </Tag>
   );
 }

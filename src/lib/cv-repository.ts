@@ -69,6 +69,7 @@ function normalizeSectionMeta(value: unknown, customSections: CustomSection[]): 
         title: String(raw.title || (type === "custom" ? "Özel Bölüm" : SECTION_LABELS[type])),
         visible: raw.visible !== false,
         isCustom,
+        column: raw.column === "sidebar" || raw.column === "main" ? raw.column : undefined,
       };
     }
   }
@@ -80,6 +81,7 @@ function normalizeSectionMeta(value: unknown, customSections: CustomSection[]): 
       title: meta[section.id]?.title || section.title || "Özel Bölüm",
       visible: meta[section.id]?.visible ?? true,
       isCustom: true,
+      column: meta[section.id]?.column ?? "main",
     };
   }
 

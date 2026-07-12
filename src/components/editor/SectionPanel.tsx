@@ -17,7 +17,7 @@ import {
 import { getCustomSection, getSectionTitle, isBuiltInSectionId } from "@/lib/section-utils";
 import { nanoid } from "@/lib/nanoid";
 import { handleListTextareaKeyDown } from "@/lib/text-list-utils";
-import { Plus, Trash2, ChevronDown, ChevronUp, GripVertical, EyeOff } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronUp, GripVertical, EyeOff, List } from "lucide-react";
 
 interface Props {
   sectionId: SectionId;
@@ -32,6 +32,8 @@ export default function SectionPanel({ sectionId }: Props) {
     : customSection?.items as unknown[] ?? [];
   const isVisible = cv.sections.sectionMeta[String(sectionId)]?.visible ?? true;
   const [expandedId, setExpandedId] = useState<string | null>(items[0] ? (items[0] as { id: string }).id : null);
+  const [quickValue, setQuickValue] = useState("");
+  const [quickBullets, setQuickBullets] = useState(false);
 
   const persistItems = (nextItems: unknown[]) => {
     if (isBuiltIn) {
@@ -43,44 +45,28 @@ export default function SectionPanel({ sectionId }: Props) {
   };
 
   const addItem = () => {
-    const base = { id: nanoid() };
-    let newItem: unknown;
-
-    if (!isBuiltIn) {
-      newItem = { ...base, title: "", description: "" } as CustomSectionItem;
-    } else {
-      switch (sectionId) {
-        case "experience":
-          newItem = { ...base, company: "", position: "", startDate: "", endDate: "", current: false, location: "", description: "" } as ExperienceItem;
-          break;
-        case "education":
-          newItem = { ...base, school: "", degree: "", field: "", startDate: "", endDate: "", current: false, gpa: "", description: "" } as EducationItem;
-          break;
-        case "skills":
-          newItem = { ...base, name: "", level: 3 } as SkillItem;
-          break;
-        case "languages":
-          newItem = { ...base, name: "", level: "B2" } as LanguageItem;
-          break;
-        case "projects":
-          newItem = { ...base, name: "", description: "", url: "", technologies: "" } as ProjectItem;
-          break;
-        case "references":
-          newItem = { ...base, name: "", title: "", company: "", email: "", phone: "" } as ReferenceItem;
-          break;
-        case "certificates":
-          newItem = { ...base, name: "", issuer: "", date: "", url: "" } as CertificateItem;
-          break;
-        case "interests":
-          newItem = { ...base, name: "" } as InterestItem;
-          break;
-      }
-    }
+    const newItem = createSectionItem(sectionId, "", false);
 
     if (newItem) {
       persistItems([...items, newItem]);
       setExpandedId((newItem as { id: string }).id);
     }
+  };
+
+  const addQuickItems = () => {
+    const values = quickValue
+      .split(/[\n,;]+/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (values.length === 0) return;
+
+    const created = values
+      .map((value) => createSectionItem(sectionId, value, quickBullets))
+      .filter(Boolean) as unknown[];
+    if (created.length === 0) return;
+
+    persistItems([...items, ...created]);
+    setQuickValue("");
   };
 
   const removeItem = (id: string) => {
@@ -115,6 +101,45 @@ export default function SectionPanel({ sectionId }: Props) {
           className="flex items-center gap-1 text-xs text-[#B08D57] hover:text-[#9a7a4a] font-semibold flex-shrink-0"
         >
           <Plus className="w-3.5 h-3.5" /> Ekle
+        </button>
+      </div>
+
+      <div className="flex items-center gap-1.5 rounded-lg border border-[#E8E4DC] bg-[#FAF9F6] p-1.5">
+        <input
+          type="text"
+          value={quickValue}
+          onChange={(event) => setQuickValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addQuickItems();
+            }
+          }}
+          placeholder={getQuickAddPlaceholder(sectionId)}
+          className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-xs text-[#2B2A28] outline-none placeholder:text-[#9B978F]"
+        />
+        {(sectionId === "skills" || sectionId === "languages" || sectionId === "interests" || !isBuiltIn) && (
+          <button
+            type="button"
+            onClick={() => setQuickBullets((current) => !current)}
+            aria-label="Madde işaretiyle ekle"
+            title="Madde işaretiyle ekle"
+            className={`grid h-8 w-8 place-items-center rounded-md transition-colors ${
+              quickBullets ? "bg-[#B08D57] text-white" : "text-[#7A766E] hover:bg-white hover:text-[#B08D57]"
+            }`}
+          >
+            <List className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={addQuickItems}
+          disabled={!quickValue.trim()}
+          aria-label="Hızlı ekle"
+          title="Hızlı ekle"
+          className="grid h-8 w-8 place-items-center rounded-md bg-[#B08D57] text-white transition-colors hover:bg-[#9a7a4a] disabled:cursor-not-allowed disabled:opacity-35"
+        >
+          <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
 
@@ -161,6 +186,56 @@ export default function SectionPanel({ sectionId }: Props) {
       })}
     </div>
   );
+}
+
+function createSectionItem(sectionId: SectionId, value: string, withBullet: boolean): unknown {
+  const base = { id: nanoid() };
+  const [rawName = "", rawLevel = ""] = value.split(/\s*:\s*/, 2);
+  const listName = withBullet && rawName ? `• ${rawName.replace(/^•\s*/, "")}` : rawName;
+
+  if (!isBuiltInSectionId(sectionId)) {
+    return { ...base, title: listName, description: "" } as CustomSectionItem;
+  }
+
+  switch (sectionId) {
+    case "experience":
+      return { ...base, company: "", position: rawName, startDate: "", endDate: "", current: false, location: "", description: "" } as ExperienceItem;
+    case "education":
+      return { ...base, school: rawName, degree: "", field: "", startDate: "", endDate: "", current: false, gpa: "", description: "" } as EducationItem;
+    case "skills": {
+      const level = Number(rawLevel);
+      return { ...base, name: listName, level: Number.isFinite(level) && level >= 1 && level <= 5 ? level : 3 } as SkillItem;
+    }
+    case "languages": {
+      const supportedLevels = new Set(["A1", "A2", "B1", "B2", "C1", "C2", "Ana Dil"]);
+      return { ...base, name: listName, level: supportedLevels.has(rawLevel) ? rawLevel : "B2" } as LanguageItem;
+    }
+    case "projects":
+      return { ...base, name: rawName, description: "", url: "", technologies: "" } as ProjectItem;
+    case "references":
+      return { ...base, name: rawName, title: "", company: "", email: "", phone: "" } as ReferenceItem;
+    case "certificates":
+      return { ...base, name: rawName, issuer: "", date: "", url: "" } as CertificateItem;
+    case "interests":
+      return { ...base, name: listName } as InterestItem;
+  }
+}
+
+function getQuickAddPlaceholder(sectionId: SectionId) {
+  if (!isBuiltInSectionId(sectionId)) return "Başlıkları virgülle ayırın";
+
+  const placeholders: Record<string, string> = {
+    experience: "Pozisyonları virgülle ayırın",
+    education: "Okulları virgülle ayırın",
+    skills: "React:5, TypeScript:4, Figma:3",
+    languages: "İngilizce:C1, Almanca:B2",
+    projects: "Proje adlarını virgülle ayırın",
+    references: "Referans adlarını virgülle ayırın",
+    certificates: "Sertifikaları virgülle ayırın",
+    interests: "İlgi alanlarını virgülle ayırın",
+  };
+
+  return placeholders[sectionId] ?? "Öğeleri virgülle ayırın";
 }
 
 function getItemLabel(sectionId: SectionId, item: Record<string, unknown>): string {

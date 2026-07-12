@@ -2,6 +2,7 @@
 
 import { useCVStore } from "@/store/cv-store";
 import { FONT_OPTIONS, resolveFontFamily } from "@/lib/font-options";
+import { LayoutTemplate, PanelLeft, PanelRight } from "lucide-react";
 
 const COLOR_PRESETS = [
   { label: "Bronz", value: "#B08D57" },
@@ -21,6 +22,34 @@ export default function ThemePanel() {
   return (
     <div className="space-y-5 p-4">
       <h3 className="text-sm font-bold text-[#2B2A28] uppercase tracking-wider">Tasarım Ayarları</h3>
+
+      <div>
+        <label className="text-xs text-[#7A766E] block mb-2">Yan Sütun Konumu</label>
+        <div className="grid grid-cols-3 gap-1 rounded-lg border border-[#E8E4DC] bg-[#FAF9F6] p-1">
+          {[
+            { id: "auto" as const, label: "Şablon", icon: LayoutTemplate },
+            { id: "left" as const, label: "Sol", icon: PanelLeft },
+            { id: "right" as const, label: "Sağ", icon: PanelRight },
+          ].map((option) => {
+            const Icon = option.icon;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setTheme({ sidebarPosition: option.id })}
+                className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[11px] font-semibold transition-colors ${
+                  theme.sidebarPosition === option.id
+                    ? "bg-white text-[#B08D57] shadow-sm"
+                    : "text-[#7A766E] hover:text-[#2B2A28]"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Primary Color */}
       <div>

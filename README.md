@@ -9,18 +9,20 @@ CVCraft; ATS uyumlu şablonlar, gerçek zamanlı önizleme, kayıtlı CV yöneti
 - 10 profesyonel CV şablonu: Modern, Klasik, Yaratıcı, Minimal, ATS Pro, Executive, Corporate, Consultant, Editorial, Tech Focus
 - Gerçek zamanlı CV önizleme ve şablonlar arası veri kaybı olmadan geçiş
 - CV ön izlemesi üzerinden doğrudan metin düzenleme, seçili metne biçim uygulama ve bölüm sürükle-bırak
+- Bölümleri ana alan ile yan sütun arasında sürükleyerek taşıma ve yan sütunu şablona göre sol/sağ konumlandırma
 - Gelişmiş metin araç çubuğu: çalışan font arama, font, boyut, kalın, italik, altı çizili, üstü çizili, renk, hizalama, liste, girinti, satır ve harf aralığı
 - Times New Roman dahil 20 profesyonel font seçeneği ve PDF uyumlu font fallback sistemi
 - Kişisel bilgiler, deneyim, eğitim, yetenekler, diller, projeler, sertifikalar, referanslar ve ilgi alanları yönetimi
 - Doğum tarihi, uyruk, medeni durum, askerlik durumu ve ehliyet gibi isteğe bağlı kişisel detay alanları
 - Sürükle-bırak bölüm sıralama, özel bölüm ekleme, bölüm başlığı değiştirme, gizle/göster, çoğaltma ve silme işlemleri
+- Virgül, noktalı virgül veya yeni satırla toplu içerik ekleme; yetenek/dil seviyesi ve isteğe bağlı madde işareti desteği
 - Gelişmiş fotoğraf düzenleyici: kırpma, zoom, konum, döndürme, flip, filtre, şekil ve kenarlık ayarları
 - 50 adımlı undo/redo geçmişi, manuel kaydetme akışı ve kaydedilmemiş değişiklik uyarısı
 - Tema rengi, tipografi, yazı boyutu ve fotoğraf biçimi ayarları
 - Dashboard üzerinden CV oluşturma, düzenleme ve profesyonel onay modalı ile silme
 - Admin panelinde CV ve şablon kullanım görünümü
 - PDF indirme öncesi profesyonel ön izleme ve onay akışı
-- Pixel-perfect PDF export
+- İçerik arttıkça otomatik uzayan A4 ön izleme, sayfa sınırı göstergeleri ve çok sayfalı pixel-perfect PDF export
 - Next.js App Router, React 19, TypeScript, Tailwind CSS 4 ve Zustand tabanlı modern frontend mimarisi
 - PostgreSQL + Drizzle ORM desteği, lokal geliştirmede dosya tabanlı fallback
 - Vercel uyumlu Chromium fallback ile PDF oluşturma

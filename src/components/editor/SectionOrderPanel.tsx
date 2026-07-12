@@ -7,6 +7,7 @@ import {
   SECTION_TYPE_OPTIONS,
   getEditableSectionIds,
   getSectionItemCount,
+  getSectionColumn,
   getSectionTitle,
   isBuiltInSectionId,
   isSectionVisible,
@@ -27,6 +28,8 @@ import {
   Languages,
   MoreVertical,
   Pencil,
+  PanelLeft,
+  PanelRight,
   Plus,
   Sparkles,
   Trash2,
@@ -53,6 +56,7 @@ export default function SectionOrderPanel() {
     setSectionOrder,
     setSectionTitle,
     setSectionVisibility,
+    setSectionColumn,
     addSection,
     duplicateSection,
     removeSection,
@@ -174,6 +178,7 @@ export default function SectionOrderPanel() {
 
         {order.map((sectionId, index) => {
           const visible = isSectionVisible(cv, sectionId);
+          const column = getSectionColumn(cv, sectionId);
           const count = getSectionItemCount(cv, sectionId);
           const Icon = isBuiltInSectionId(sectionId) ? SECTION_ICONS[sectionId] : BookOpen;
           const isMenuOpen = menuId === sectionId;
@@ -231,7 +236,7 @@ export default function SectionOrderPanel() {
                   </div>
                 )}
                 <div className="mt-0.5 text-[11px] text-[#7A766E]">
-                  {count} içerik
+                  {count} içerik · {column === "sidebar" ? "Yan sütun" : "Ana alan"}
                 </div>
               </div>
 
@@ -268,6 +273,14 @@ export default function SectionOrderPanel() {
                     label="Bölümü çoğalt"
                     onClick={() => {
                       duplicateSection(sectionId);
+                      setMenuId(null);
+                    }}
+                  />
+                  <MenuButton
+                    icon={column === "sidebar" ? <PanelRight className="w-3.5 h-3.5" /> : <PanelLeft className="w-3.5 h-3.5" />}
+                    label={column === "sidebar" ? "Ana alana taşı" : "Yan sütuna taşı"}
+                    onClick={() => {
+                      setSectionColumn(sectionId, column === "sidebar" ? "main" : "sidebar");
                       setMenuId(null);
                     }}
                   />
