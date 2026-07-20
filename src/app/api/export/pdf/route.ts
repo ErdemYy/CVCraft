@@ -5,6 +5,9 @@ import { getSession } from "@/lib/session";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const DOWNLOAD_COOKIE = "cv_pdf_download";
+const DOWNLOAD_TOKEN_PATTERN = /^[a-zA-Z0-9_-]{12,128}$/;
+
 const BROWSER_PATHS = [
   process.env.PUPPETEER_EXECUTABLE_PATH,
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
@@ -51,19 +54,92 @@ function getContentDispositionFileName(fileName: string) {
   return `attachment; filename="${asciiName}.pdf"; filename*=UTF-8''${encodeURIComponent(`${fileName}.pdf`)}`;
 }
 
+function isNativeDownloadRequest(req: NextRequest) {
+  const contentType = req.headers.get("content-type") || "";
+  return contentType.includes("application/x-www-form-urlencoded")
+    || contentType.includes("multipart/form-data");
+}
+
+async function parseExportRequest(req: NextRequest) {
+  if (isNativeDownloadRequest(req)) {
+    const formData = await req.formData();
+    const rawCVData = formData.get("cvData");
+    const rawDownloadToken = formData.get("downloadToken");
+
+    if (typeof rawCVData !== "string") {
+      return { cvData: null, downloadToken: null, nativeDownload: true };
+    }
+
+    const downloadToken = typeof rawDownloadToken === "string"
+      && DOWNLOAD_TOKEN_PATTERN.test(rawDownloadToken)
+      ? rawDownloadToken
+      : null;
+
+    return {
+      cvData: JSON.parse(rawCVData),
+      downloadToken,
+      nativeDownload: true,
+    };
+  }
+
+  const body = await req.json();
+  return {
+    cvData: body?.cvData ?? null,
+    downloadToken: null,
+    nativeDownload: false,
+  };
+}
+
+function nativeDownloadError(req: NextRequest, message: string, status: number) {
+  const payload = JSON.stringify({
+    type: "cvcraft:pdf-error",
+    message,
+  }).replace(/</g, "\\u003c");
+
+  return new NextResponse(
+    `<!doctype html><html lang="tr"><head><meta charset="utf-8"></head><body><script>window.parent.postMessage(${payload}, ${JSON.stringify(req.nextUrl.origin)});</script></body></html>`,
+    {
+      status,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+      },
+    },
+  );
+}
+
 export async function POST(req: NextRequest) {
+  const nativeRequest = isNativeDownloadRequest(req);
   const user = await getSession();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) {
+    const message = "Oturumunuz sona erdi. Lütfen yeniden giriş yapın.";
+    return nativeRequest
+      ? nativeDownloadError(req, message, 401)
+      : NextResponse.json({ error: message }, { status: 401 });
+  }
 
   let browser: import("puppeteer-core").Browser | null = null;
+  let nativeDownload = nativeRequest;
+  const startedAt = Date.now();
 
   try {
-    const body = await req.json();
-    const { cvData } = body;
+    const parsedRequest = await parseExportRequest(req);
+    const { cvData, downloadToken } = parsedRequest;
+    nativeDownload = parsedRequest.nativeDownload;
 
-    if (!cvData) {
-      return NextResponse.json({ error: "CV verisi gerekli" }, { status: 400 });
+    if (!cvData || typeof cvData !== "object") {
+      const message = "PDF oluşturmak için geçerli CV verisi gerekli.";
+      return nativeDownload
+        ? nativeDownloadError(req, message, 400)
+        : NextResponse.json({ error: message }, { status: 400 });
     }
+
+    console.info("[pdf-export] started", {
+      userId: user.id,
+      templateId: cvData.templateId || "modern",
+      nativeDownload,
+    });
 
     const puppeteer = await import("puppeteer-core");
     const launchOptions = await getBrowserLaunchOptions();
@@ -103,19 +179,44 @@ export async function POST(req: NextRequest) {
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
-    return new NextResponse(Buffer.from(pdfBuffer), {
+    const response = new NextResponse(Buffer.from(pdfBuffer), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": getContentDispositionFileName(fileName),
         "Cache-Control": "private, no-store",
+        "Content-Length": String(pdfBuffer.byteLength),
+        "X-Content-Type-Options": "nosniff",
       },
     });
+
+    if (downloadToken) {
+      response.cookies.set(DOWNLOAD_COOKIE, downloadToken, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60,
+        path: "/",
+      });
+    }
+
+    console.info("[pdf-export] completed", {
+      userId: user.id,
+      bytes: pdfBuffer.byteLength,
+      durationMs: Date.now() - startedAt,
+      nativeDownload,
+    });
+
+    return response;
   } catch (error) {
-    console.error("PDF export error:", error);
-    return NextResponse.json(
-      { error: "PDF şu anda oluşturulamadı. Lütfen tekrar deneyin." },
-      { status: 500 },
-    );
+    console.error("[pdf-export] failed", {
+      error: error instanceof Error ? error.message : String(error),
+      durationMs: Date.now() - startedAt,
+      nativeDownload,
+    });
+    const message = "PDF şu anda oluşturulamadı. Lütfen tekrar deneyin.";
+    return nativeDownload
+      ? nativeDownloadError(req, message, 500)
+      : NextResponse.json({ error: message }, { status: 500 });
   } finally {
     await browser?.close();
   }

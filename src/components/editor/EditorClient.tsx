@@ -16,7 +16,7 @@ import SectionOrderPanel from "./SectionOrderPanel";
 import RichTextToolbar from "./RichTextToolbar";
 import {
   ChevronLeft, Save, Download, Palette, List, User, ArrowLeftRight, Loader2,
-  LayoutTemplate
+  LayoutTemplate, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import { TEMPLATES } from "@/lib/templates";
 
@@ -26,6 +26,9 @@ interface Props {
 
 type LeftTab = "personal" | "sections" | "order" | "theme";
 type SaveStatus = "idle" | "saving" | "saved" | "device" | "error";
+const PDF_DOWNLOAD_FRAME = "cvcraft-pdf-download";
+const PDF_DOWNLOAD_COOKIE = "cv_pdf_download";
+const PDF_DOWNLOAD_TIMEOUT = 70_000;
 
 export default function EditorClient({ user }: Props) {
   const router = useRouter();
@@ -58,12 +61,15 @@ export default function EditorClient({ user }: Props) {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [exportError, setExportError] = useState("");
+  const [exportSuccess, setExportSuccess] = useState(false);
   const [titleEditing, setTitleEditing] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [activeTextField, setActiveTextField] = useState<string | null>(null);
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [previewHeight, setPreviewHeight] = useState(1123);
   const previewContentRef = useRef<HTMLDivElement | null>(null);
+  const exportPollRef = useRef<number | null>(null);
+  const exportMessageTimerRef = useRef<number | null>(null);
   const previewScale = 0.55;
   const previewPageCount = Math.max(1, Math.ceil(previewHeight / 1123));
   const editableSections = getEditableSectionIds(cv);
@@ -95,6 +101,32 @@ export default function EditorClient({ user }: Props) {
     if (content.firstElementChild) observer.observe(content.firstElementChild);
     return () => observer.disconnect();
   }, [cv.templateId]);
+
+  const clearExportTimers = useCallback(() => {
+    if (exportPollRef.current !== null) {
+      window.clearInterval(exportPollRef.current);
+      exportPollRef.current = null;
+    }
+    if (exportMessageTimerRef.current !== null) {
+      window.clearTimeout(exportMessageTimerRef.current);
+      exportMessageTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePDFError = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.data?.type !== "cvcraft:pdf-error") return;
+      clearExportTimers();
+      setExporting(false);
+      setExportError(event.data.message || "PDF oluşturulamadı. Lütfen tekrar deneyin.");
+    };
+
+    window.addEventListener("message", handlePDFError);
+    return () => {
+      window.removeEventListener("message", handlePDFError);
+      clearExportTimers();
+    };
+  }, [clearExportTimers]);
 
   const activeTextStyle = useMemo(
     () => activeTextField
@@ -254,46 +286,72 @@ export default function EditorClient({ user }: Props) {
     setSectionColumn(sourceId, column);
   }, [setSectionColumn]);
 
-  const handleExportPDF = async () => {
+  const handleExportPDF = () => {
+    clearExportTimers();
     setExporting(true);
     setExportError("");
-    try {
-      const res = await fetch("/api/export/pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cvData: cv }),
-      });
+    setExportSuccess(false);
 
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        const firstName = cv.personalInfo.firstName || "";
-        const lastName = cv.personalInfo.lastName || "";
-        const name = firstName || lastName
-          ? `${firstName}_${lastName}_CV`.replace(/\s+/g, "_")
-          : "CV";
-        a.href = url;
-        a.download = `${name}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      } else {
-        const data = await res.json().catch(() => null);
-        setExportError(data?.error || "PDF oluşturulamadı.");
+    const downloadToken = `pdf_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/export/pdf";
+    form.target = PDF_DOWNLOAD_FRAME;
+    form.acceptCharset = "UTF-8";
+    form.hidden = true;
+
+    const cvDataInput = document.createElement("input");
+    cvDataInput.type = "hidden";
+    cvDataInput.name = "cvData";
+    cvDataInput.value = JSON.stringify(cv);
+
+    const tokenInput = document.createElement("input");
+    tokenInput.type = "hidden";
+    tokenInput.name = "downloadToken";
+    tokenInput.value = downloadToken;
+
+    form.append(cvDataInput, tokenInput);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+
+    const startedAt = Date.now();
+    exportPollRef.current = window.setInterval(() => {
+      const completed = document.cookie
+        .split("; ")
+        .some((cookie) => cookie === `${PDF_DOWNLOAD_COOKIE}=${downloadToken}`);
+
+      if (completed) {
+        clearExportTimers();
+        document.cookie = `${PDF_DOWNLOAD_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
+        setExporting(false);
+        setExportSuccess(true);
+        setPdfPreviewOpen(false);
+        exportMessageTimerRef.current = window.setTimeout(() => {
+          setExportSuccess(false);
+          exportMessageTimerRef.current = null;
+        }, 4_000);
+        return;
       }
-    } catch {
-      setExportError("PDF oluşturulamadı. Lütfen tekrar deneyin.");
-    } finally {
-      setExporting(false);
-    }
+
+      if (Date.now() - startedAt >= PDF_DOWNLOAD_TIMEOUT) {
+        clearExportTimers();
+        setExporting(false);
+        setExportError("PDF hazırlama süresi aşıldı. Lütfen tekrar deneyin.");
+      }
+    }, 300);
   };
 
   const currentTemplate = TEMPLATES.find((t) => t.id === cv.templateId) || TEMPLATES[0];
 
   return (
     <div className="h-screen flex flex-col bg-[#FAF9F6] overflow-hidden">
+      <iframe
+        title="PDF indirme işlemi"
+        name={PDF_DOWNLOAD_FRAME}
+        className="hidden"
+        aria-hidden="true"
+      />
       {/* Top bar */}
       <header className="bg-white border-b border-[#E8E4DC] h-14 flex items-center px-4 gap-4 flex-shrink-0 z-30">
         <Link
@@ -537,7 +595,8 @@ export default function EditorClient({ user }: Props) {
               </div>
               <button
                 onClick={() => setPdfPreviewOpen(false)}
-                className="rounded-lg border border-[#E8E4DC] px-3 py-1.5 text-sm font-semibold text-[#2B2A28] hover:border-[#B08D57]"
+                disabled={exporting}
+                className="rounded-lg border border-[#E8E4DC] px-3 py-1.5 text-sm font-semibold text-[#2B2A28] hover:border-[#B08D57] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Kapat
               </button>
@@ -547,26 +606,40 @@ export default function EditorClient({ user }: Props) {
                 <CVRenderer cv={cv} />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-[#E8E4DC] px-5 py-4">
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#E8E4DC] px-5 py-4">
+              {exportError && (
+                <div className="mr-auto flex items-center gap-2 text-sm font-medium text-red-600" role="alert">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{exportError}</span>
+                </div>
+              )}
               <button
                 onClick={() => setPdfPreviewOpen(false)}
-                className="rounded-lg border border-[#E8E4DC] px-4 py-2 text-sm font-semibold text-[#2B2A28] hover:border-[#B08D57]"
+                disabled={exporting}
+                className="rounded-lg border border-[#E8E4DC] px-4 py-2 text-sm font-semibold text-[#2B2A28] hover:border-[#B08D57] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 İptal
               </button>
               <button
-                onClick={() => {
-                  setPdfPreviewOpen(false);
-                  void handleExportPDF();
-                }}
+                onClick={handleExportPDF}
                 disabled={exporting}
                 className="flex items-center gap-2 rounded-lg bg-[#B08D57] px-4 py-2 text-sm font-semibold text-white hover:bg-[#9a7a4a] disabled:opacity-60"
               >
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Onayla ve İndir
+                {exporting ? "PDF hazırlanıyor..." : "Onayla ve İndir"}
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {exportSuccess && (
+        <div
+          role="status"
+          className="fixed right-4 top-20 z-[60] flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-xl"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          PDF indirme işlemi başlatıldı.
         </div>
       )}
     </div>
