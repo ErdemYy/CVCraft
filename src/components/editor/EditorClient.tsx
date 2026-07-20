@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AuthUser } from "@/lib/auth";
 import { useCVStore } from "@/store/cv-store";
-import { type SectionColumn, type SectionId } from "@/lib/cv-types";
+import { type CVLayoutBlockId, type SectionColumn, type SectionId } from "@/lib/cv-types";
 import { getEditableSectionIds, getSectionColumn, getSectionTitle, isSectionVisible } from "@/lib/section-utils";
 import { deleteDeviceCV, saveDeviceCV } from "@/lib/device-cv-storage";
 import CVRenderer from "@/components/templates/CVRenderer";
@@ -46,6 +46,7 @@ export default function EditorClient({ user }: Props) {
     setSectionTitle,
     setSectionOrder,
     setSectionColumn,
+    setLayoutBlockColumn,
     setTextStyle,
     setRichText,
     clearTextStyle,
@@ -285,6 +286,10 @@ export default function EditorClient({ user }: Props) {
   const handlePreviewColumnDrop = useCallback((sourceId: string, column: SectionColumn) => {
     setSectionColumn(sourceId, column);
   }, [setSectionColumn]);
+
+  const handlePreviewLayoutBlockDrop = useCallback((blockId: CVLayoutBlockId, column: SectionColumn) => {
+    setLayoutBlockColumn(blockId, column);
+  }, [setLayoutBlockColumn]);
 
   const handleExportPDF = () => {
     clearExportTimers();
@@ -559,6 +564,7 @@ export default function EditorClient({ user }: Props) {
                 onRichTextChange={setRichText}
                 onSectionDrop={handlePreviewSectionDrop}
                 onSectionColumnDrop={handlePreviewColumnDrop}
+                onLayoutBlockColumnDrop={handlePreviewLayoutBlockDrop}
               />
             </div>
             {Array.from({ length: Math.max(0, previewPageCount - 1) }, (_, index) => (

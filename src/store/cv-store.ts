@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
   type CVData,
+  type CVLayoutBlockId,
   type PersonalInfo,
   type CVSections,
   type CVTheme,
@@ -38,6 +39,7 @@ interface CVStore {
   setSectionTitle: (sectionId: SectionId, title: string) => void;
   setSectionVisibility: (sectionId: SectionId, visible: boolean) => void;
   setSectionColumn: (sectionId: SectionId, column: SectionColumn) => void;
+  setLayoutBlockColumn: (blockId: CVLayoutBlockId, column: SectionColumn) => void;
   addSection: (sectionType: SectionKey | "custom", customTitle?: string) => SectionId | null;
   duplicateSection: (sectionId: SectionId) => SectionId | null;
   removeSection: (sectionId: SectionId) => void;
@@ -93,6 +95,10 @@ function withSectionDefaults(cv: CVData): CVData {
     theme: {
       ...DEFAULT_THEME,
       ...(cv.theme ?? {}),
+      layoutBlockColumns: {
+        ...DEFAULT_THEME.layoutBlockColumns,
+        ...(cv.theme?.layoutBlockColumns ?? {}),
+      },
       globalTextStyle: { ...DEFAULT_THEME.globalTextStyle, ...(cv.theme?.globalTextStyle ?? {}) },
       textStyles: { ...DEFAULT_THEME.textStyles, ...(cv.theme?.textStyles ?? {}) },
       richText: { ...DEFAULT_THEME.richText, ...(cv.theme?.richText ?? {}) },
@@ -292,6 +298,18 @@ export const useCVStore = create<CVStore>()(
             },
           });
         }),
+
+      setLayoutBlockColumn: (blockId, column) =>
+        set((state) => commitCV(state, {
+          ...state.cv,
+          theme: {
+            ...state.cv.theme,
+            layoutBlockColumns: {
+              ...state.cv.theme.layoutBlockColumns,
+              [blockId]: column,
+            },
+          },
+        })),
 
       addSection: (sectionType, customTitle) => {
         const createdId = sectionType === "custom" ? `custom_${nanoid()}` : sectionType;

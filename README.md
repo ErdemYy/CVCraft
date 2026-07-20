@@ -44,7 +44,8 @@ Uygulama; Next.js App Router, React, TypeScript ve Zustand üzerine kuruludur. K
 
 - İş deneyimi, eğitim, yetenek, dil, proje, sertifika, referans ve ilgi alanı bölümleri
 - Özel bölüm oluşturma, yeniden adlandırma, çoğaltma, gizleme ve silme
-- Bölümleri sürükleyerek sıralama veya ana alan ile yan sütun arasında taşıma
+- Fotoğraf, ad ve ünvan, iletişim, kişisel bilgiler, özet ve tüm CV bölümlerini sol/sağ sütunlar arasında taşıma
+- Ön izleme üzerinde sürükle-bırak ve mobil uyumlu yön düğmeleriyle yerleşim yönetimi
 - Yan sütunu desteklenen şablonlarda sola veya sağa konumlandırma
 - Virgül, noktalı virgül ya da yeni satır kullanarak toplu içerik ekleme
 - İsteğe bağlı madde işareti, yetenek seviyesi ve dil seviyesi desteği

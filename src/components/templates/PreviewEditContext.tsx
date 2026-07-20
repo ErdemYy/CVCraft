@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { FocusEvent, FormEvent, KeyboardEvent } from "react";
 import { resolveFontFamily } from "@/lib/font-options";
-import type { CVTextStyle, SectionColumn, SectionId } from "@/lib/cv-types";
+import type { CVLayoutBlockId, CVTextStyle, SectionColumn, SectionId } from "@/lib/cv-types";
 
 type EditableFieldChange = (fieldId: string, value: string, html?: string) => void;
 type RichTextChange = (fieldId: string, html: string) => void;
@@ -20,6 +20,7 @@ interface PreviewEditContextValue {
   onRichTextChange?: RichTextChange;
   onSectionDrop?: (sourceId: SectionId, targetId: SectionId, position: SectionDropPosition) => void;
   onSectionColumnDrop?: (sourceId: SectionId, column: SectionColumn) => void;
+  onLayoutBlockColumnDrop?: (blockId: CVLayoutBlockId, column: SectionColumn) => void;
 }
 
 const PreviewEditContext = createContext<PreviewEditContextValue>({
@@ -42,6 +43,7 @@ export function PreviewEditProvider({
   onRichTextChange,
   onSectionDrop,
   onSectionColumnDrop,
+  onLayoutBlockColumnDrop,
 }: PreviewEditContextValue & { children: React.ReactNode }) {
   useEffect(() => {
     if (!editable) return;
@@ -61,8 +63,9 @@ export function PreviewEditProvider({
       onRichTextChange,
       onSectionDrop,
       onSectionColumnDrop,
+      onLayoutBlockColumnDrop,
     }),
-    [editable, activeFieldId, globalStyle, textStyles, richText, onActiveFieldChange, onFieldChange, onRichTextChange, onSectionDrop, onSectionColumnDrop],
+    [editable, activeFieldId, globalStyle, textStyles, richText, onActiveFieldChange, onFieldChange, onRichTextChange, onSectionDrop, onSectionColumnDrop, onLayoutBlockColumnDrop],
   );
 
   return <PreviewEditContext.Provider value={value}>{children}</PreviewEditContext.Provider>;
@@ -353,22 +356,83 @@ export function DraggableSection({
   );
 }
 
+export function DraggableLayoutBlock({
+  blockId,
+  children,
+}: {
+  blockId: CVLayoutBlockId;
+  children: React.ReactNode;
+}) {
+  const context = useContext(PreviewEditContext);
+
+  if (!context.editable || !context.onLayoutBlockColumnDrop) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div
+      data-cv-layout-block={blockId}
+      style={{
+        position: "relative",
+        borderRadius: "4px",
+        outline: "1px solid transparent",
+        outlineOffset: "4px",
+      }}
+    >
+      <button
+        type="button"
+        draggable
+        onMouseDown={(event) => event.stopPropagation()}
+        onDragStart={(event) => {
+          event.dataTransfer.setData("text/cv-layout-block", blockId);
+          event.dataTransfer.effectAllowed = "move";
+        }}
+        style={{
+          position: "absolute",
+          right: "4px",
+          top: "4px",
+          zIndex: 5,
+          width: "20px",
+          height: "20px",
+          borderRadius: "7px",
+          border: "1px solid rgba(176,141,87,0.45)",
+          background: "rgba(255,255,255,0.92)",
+          color: "#B08D57",
+          fontSize: "12px",
+          lineHeight: "18px",
+          textAlign: "center",
+          cursor: "grab",
+          boxShadow: "0 4px 12px rgba(43,42,40,0.12)",
+          userSelect: "none",
+        }}
+        title="Alanı diğer sütuna taşı"
+        aria-label="Alanı sürükle"
+      >
+        ⋮⋮
+      </button>
+      {children}
+    </div>
+  );
+}
+
 export function ColumnDropZone({
   column,
   as = "div",
   children,
   style,
+  dropLabel,
 }: {
   column: SectionColumn;
   as?: React.ElementType;
   children: React.ReactNode;
   style?: React.CSSProperties;
+  dropLabel?: string;
 }) {
   const context = useContext(PreviewEditContext);
   const [dragOver, setDragOver] = useState(false);
   const Tag = as as React.ElementType;
 
-  if (!context.editable || !context.onSectionColumnDrop) {
+  if (!context.editable || (!context.onSectionColumnDrop && !context.onLayoutBlockColumnDrop)) {
     return <Tag style={style}>{children}</Tag>;
   }
 
@@ -397,6 +461,11 @@ export function ColumnDropZone({
       onDrop={(event: React.DragEvent<HTMLElement>) => {
         event.preventDefault();
         setDragOver(false);
+        const layoutBlock = event.dataTransfer.getData("text/cv-layout-block") as CVLayoutBlockId;
+        if (layoutBlock) {
+          context.onLayoutBlockColumnDrop?.(layoutBlock, column);
+          return;
+        }
         const source = event.dataTransfer.getData("text/cv-section");
         if (source) context.onSectionColumnDrop?.(source, column);
       }}
@@ -418,7 +487,7 @@ export function ColumnDropZone({
             pointerEvents: "none",
           }}
         >
-          {column === "sidebar" ? "Yan sütuna bırak" : "Ana alana bırak"}
+          {dropLabel || (column === "sidebar" ? "Yan sütuna bırak" : "Ana alana bırak")}
         </div>
       )}
       {children}

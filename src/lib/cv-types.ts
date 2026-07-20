@@ -145,6 +145,7 @@ export type SectionKey =
 
 export type SectionId = SectionKey | string;
 export type SectionColumn = "sidebar" | "main";
+export type CVLayoutBlockId = "photo" | "identity" | "contact" | "personalDetails" | "summary";
 
 export interface SectionMeta {
   id: SectionId;
@@ -187,6 +188,7 @@ export interface CVTheme {
   spacing: string;
   photoShape: "circle" | "square" | "rounded";
   sidebarPosition: "auto" | "left" | "right";
+  layoutBlockColumns: Partial<Record<CVLayoutBlockId, SectionColumn>>;
   globalTextStyle: Partial<CVTextStyle>;
   textStyles: Record<string, Partial<CVTextStyle>>;
   richText: Record<string, string>;
@@ -257,6 +259,7 @@ export const DEFAULT_THEME: CVTheme = {
   spacing: "normal",
   photoShape: "circle",
   sidebarPosition: "auto",
+  layoutBlockColumns: {},
   globalTextStyle: {},
   textStyles: {},
   richText: {},

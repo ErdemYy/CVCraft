@@ -2,12 +2,11 @@
 
 import React from "react";
 import { CVData } from "@/lib/cv-types";
-import { getContactItems, getPersonalDetailItems } from "@/lib/personal-info";
-import { getCustomSection, getSectionsForColumn, getSectionTitle, isBuiltInSectionId, isSidebarRight } from "@/lib/section-utils";
+import { getColumnSide, getCustomSection, getLayoutBlocksForColumn, getSectionsForColumn, getSectionTitle, isBuiltInSectionId, isSidebarRight } from "@/lib/section-utils";
 import { resolveFontFamily } from "@/lib/font-options";
-import CVPhoto from "@/components/templates/CVPhoto";
 import { ColumnDropZone, DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
 import CompactSidebarSection from "@/components/templates/CompactSidebarSection";
+import PersonalLayoutBlock from "@/components/templates/PersonalLayoutBlock";
 
 interface Props {
   cv: CVData;
@@ -15,19 +14,13 @@ interface Props {
 }
 
 export default function ModernTemplate({ cv, scale = 1 }: Props) {
-  const { personalInfo: p, sections, theme } = cv;
+  const { sections, theme } = cv;
   const primary = theme.primaryColor || "#B08D57";
   const secondary = theme.secondaryColor || "#2B2A28";
-  const contactItems = getContactItems(p);
-  const personalDetailItems = getPersonalDetailItems(p);
-
-  const photoShape = theme.photoShape === "square"
-    ? "0px"
-    : theme.photoShape === "rounded"
-    ? "12px"
-    : "50%";
   const sidebarSectionIds = getSectionsForColumn(cv, "sidebar");
   const mainSectionIds = getSectionsForColumn(cv, "main");
+  const sidebarLayoutBlocks = getLayoutBlocksForColumn(cv, "sidebar");
+  const mainLayoutBlocks = getLayoutBlocksForColumn(cv, "main");
   const sidebarOnRight = isSidebarRight(cv);
 
   return (
@@ -49,6 +42,7 @@ export default function ModernTemplate({ cv, scale = 1 }: Props) {
       {/* Left sidebar */}
       <ColumnDropZone
         column="sidebar"
+        dropLabel={`${getColumnSide(cv, "sidebar") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
         style={{
           width: "240px",
           minHeight: "1123px",
@@ -60,48 +54,21 @@ export default function ModernTemplate({ cv, scale = 1 }: Props) {
           flexShrink: 0,
         }}
       >
-        {/* Photo */}
-        {p.photo && (
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <CVPhoto personalInfo={p} width={100} height={100} fallbackRadius={photoShape} border="3px solid rgba(255,255,255,0.4)" />
-          </div>
-        )}
-
-        {/* Name & Title */}
-        <div style={{ textAlign: "center", color: "#fff" }}>
-          <EditableText fieldId="personal.fullName" value={`${p.firstName} ${p.lastName}`.trim()} as="div" singleLine style={{ fontSize: "18px", fontWeight: "700", lineHeight: "1.2" }} placeholder="Ad Soyad" />
-          {p.title && (
-            <EditableText fieldId="personal.title" value={p.title} as="div" singleLine style={{ fontSize: "11px", marginTop: "6px", opacity: 0.85, letterSpacing: "0.5px" }} />
-          )}
-        </div>
-
-        {/* Contact */}
-        <div style={{ color: "#fff" }}>
-          <div style={{ fontSize: "10px", fontWeight: "700", letterSpacing: "1.5px", textTransform: "uppercase", opacity: 0.7, marginBottom: "10px" }}>
-            İletişim
-          </div>
-          {contactItems
-            .map((item) => (
-              <div key={item.label} style={{ fontSize: "10px", marginBottom: "6px", opacity: 0.9, wordBreak: "break-all" }}>
-                <span style={{ fontWeight: "600" }}>{item.icon} </span>
-                <EditableText fieldId={`personal.${item.field}`} value={item.value} singleLine />
-              </div>
-            ))}
-        </div>
-
-        {personalDetailItems.length > 0 && (
-          <div style={{ color: "#fff" }}>
-            <div style={{ fontSize: "10px", fontWeight: "700", letterSpacing: "1.5px", textTransform: "uppercase", opacity: 0.7, marginBottom: "10px" }}>
-              Kişisel Bilgiler
-            </div>
-            {personalDetailItems.map((item) => (
-              <div key={item.label} style={{ fontSize: "10px", marginBottom: "6px", opacity: 0.9 }}>
-                <span style={{ opacity: 0.72 }}>{item.label}: </span>
-                <EditableText fieldId={`personal.${item.field}`} value={item.value} singleLine />
-              </div>
-            ))}
-          </div>
-        )}
+        {sidebarLayoutBlocks.map((blockId) => (
+          <PersonalLayoutBlock
+            key={blockId}
+            cv={cv}
+            blockId={blockId}
+            column="sidebar"
+            accentColor="#FFFFFF"
+            titleColor="rgba(255,255,255,0.72)"
+            textColor="#FFFFFF"
+            mutedColor="rgba(255,255,255,0.7)"
+            photoBorder="3px solid rgba(255,255,255,0.4)"
+            align="center"
+            summaryTitle="Hakkımda"
+          />
+        ))}
 
         {sidebarSectionIds.map((sectionId) => (
           <CompactSidebarSection
@@ -117,17 +84,26 @@ export default function ModernTemplate({ cv, scale = 1 }: Props) {
       </ColumnDropZone>
 
       {/* Main content */}
-      <ColumnDropZone column="main" style={{ flex: 1, padding: "36px 32px", display: "flex", flexDirection: "column", gap: "20px" }}>
-        {/* Summary */}
-        {p.summary && (
-          <div>
-            <div style={{ fontSize: "10px", fontWeight: "700", letterSpacing: "2px", textTransform: "uppercase", color: primary, marginBottom: "8px" }}>
-              <EditableText fieldId="sectionTitle:summary" value="Hakkımda" singleLine />
-            </div>
-            <div style={{ height: "2px", backgroundColor: primary, marginBottom: "10px", opacity: 0.3 }} />
-            <EditableText fieldId="personal.summary" value={p.summary} as="p" multiline style={{ fontSize: "11px", lineHeight: "1.6", color: "#555" }} />
-          </div>
-        )}
+      <ColumnDropZone
+        column="main"
+        dropLabel={`${getColumnSide(cv, "main") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+        style={{ flex: 1, padding: "36px 32px", display: "flex", flexDirection: "column", gap: "20px" }}
+      >
+        {mainLayoutBlocks.map((blockId) => (
+          <PersonalLayoutBlock
+            key={blockId}
+            cv={cv}
+            blockId={blockId}
+            column="main"
+            accentColor={primary}
+            titleColor={primary}
+            textColor={secondary}
+            mutedColor="#555555"
+            photoBorder={`3px solid ${primary}44`}
+            align="left"
+            summaryTitle="Hakkımda"
+          />
+        ))}
 
         {/* Dynamic sections */}
         {mainSectionIds.map((sectionId) => {

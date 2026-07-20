@@ -2,12 +2,11 @@
 
 import React from "react";
 import { CVData } from "@/lib/cv-types";
-import { getContactItems, getPersonalDetailItems } from "@/lib/personal-info";
-import { getCustomSection, getSectionsForColumn, getSectionTitle, isBuiltInSectionId, isSidebarRight } from "@/lib/section-utils";
+import { getColumnSide, getCustomSection, getLayoutBlocksForColumn, getSectionsForColumn, getSectionTitle, isBuiltInSectionId, isSidebarRight } from "@/lib/section-utils";
 import { resolveFontFamily } from "@/lib/font-options";
-import CVPhoto from "@/components/templates/CVPhoto";
 import { ColumnDropZone, DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
 import CompactSidebarSection from "@/components/templates/CompactSidebarSection";
+import PersonalLayoutBlock from "@/components/templates/PersonalLayoutBlock";
 
 interface Props {
   cv: CVData;
@@ -15,18 +14,12 @@ interface Props {
 }
 
 export default function CreativeTemplate({ cv, scale = 1 }: Props) {
-  const { personalInfo: p, sections, theme } = cv;
+  const { sections, theme } = cv;
   const primary = theme.primaryColor || "#4F46E5";
-  const contactItems = getContactItems(p);
-  const personalDetailItems = getPersonalDetailItems(p);
-
-  const photoShape = theme.photoShape === "square"
-    ? "0px"
-    : theme.photoShape === "rounded"
-    ? "12px"
-    : "50%";
   const sidebarSectionIds = getSectionsForColumn(cv, "sidebar");
   const mainSectionIds = getSectionsForColumn(cv, "main");
+  const sidebarLayoutBlocks = getLayoutBlocksForColumn(cv, "sidebar");
+  const mainLayoutBlocks = getLayoutBlocksForColumn(cv, "main");
   const sidebarOnRight = isSidebarRight(cv);
 
   return (
@@ -46,53 +39,26 @@ export default function CreativeTemplate({ cv, scale = 1 }: Props) {
       }}
     >
       {/* Left sidebar */}
-      <ColumnDropZone column="sidebar" style={{ width: "260px", minHeight: "1123px", backgroundColor: "#312E81", padding: "40px 24px", display: "flex", flexDirection: "column", gap: "28px", flexShrink: 0 }}>
-        {/* Photo */}
-        {p.photo && (
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <CVPhoto personalInfo={p} width={110} height={110} fallbackRadius={photoShape} border={`3px solid ${primary}`} />
-          </div>
-        )}
-
-        {/* Name */}
-        <div>
-          <h1 style={{ fontSize: "20px", fontWeight: "800", color: "#fff", margin: 0, lineHeight: "1.2" }}>
-            <EditableText fieldId="personal.fullName" value={`${p.firstName} ${p.lastName}`.trim()} singleLine placeholder="Ad Soyad" />
-          </h1>
-          {p.title && (
-            <div style={{ fontSize: "11px", color: primary, marginTop: "6px", fontWeight: "600", letterSpacing: "0.5px" }}>
-              <EditableText fieldId="personal.title" value={p.title} singleLine />
-            </div>
-          )}
-        </div>
-
-        {/* Contact */}
-        <div>
-          <div style={{ fontSize: "9px", fontWeight: "700", letterSpacing: "2px", color: primary, marginBottom: "10px", textTransform: "uppercase" }}>
-            İletişim
-          </div>
-          {contactItems
-            .map((item) => (
-              <div key={item.label} style={{ marginBottom: "8px" }}>
-                <div style={{ fontSize: "9px", color: primary, marginBottom: "1px" }}>{item.label}</div>
-                <div style={{ fontSize: "10px", color: "#C7D2FE", wordBreak: "break-all" }}><EditableText fieldId={`personal.${item.field}`} value={item.value} singleLine /></div>
-              </div>
-            ))}
-        </div>
-
-        {personalDetailItems.length > 0 && (
-          <div>
-            <div style={{ fontSize: "9px", fontWeight: "700", letterSpacing: "2px", color: primary, marginBottom: "10px", textTransform: "uppercase" }}>
-              Kişisel Bilgiler
-            </div>
-            {personalDetailItems.map((item) => (
-              <div key={item.label} style={{ marginBottom: "7px" }}>
-                <div style={{ fontSize: "9px", color: primary, marginBottom: "1px" }}>{item.label}</div>
-                <div style={{ fontSize: "10px", color: "#C7D2FE" }}><EditableText fieldId={`personal.${item.field}`} value={item.value} singleLine /></div>
-              </div>
-            ))}
-          </div>
-        )}
+      <ColumnDropZone
+        column="sidebar"
+        dropLabel={`${getColumnSide(cv, "sidebar") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+        style={{ width: "260px", minHeight: "1123px", backgroundColor: "#312E81", padding: "40px 24px", display: "flex", flexDirection: "column", gap: "28px", flexShrink: 0 }}
+      >
+        {sidebarLayoutBlocks.map((blockId) => (
+          <PersonalLayoutBlock
+            key={blockId}
+            cv={cv}
+            blockId={blockId}
+            column="sidebar"
+            accentColor={primary}
+            titleColor={primary}
+            textColor="#FFFFFF"
+            mutedColor="#C7D2FE"
+            photoBorder={`3px solid ${primary}`}
+            align="left"
+            summaryTitle="Hakkımda"
+          />
+        ))}
 
         {sidebarSectionIds.map((sectionId) => (
           <CompactSidebarSection
@@ -108,16 +74,26 @@ export default function CreativeTemplate({ cv, scale = 1 }: Props) {
       </ColumnDropZone>
 
       {/* Main content */}
-      <ColumnDropZone column="main" style={{ flex: 1, padding: "40px 32px", display: "flex", flexDirection: "column", gap: "22px" }}>
-        {/* Summary */}
-        {p.summary && (
-          <div>
-            <div style={{ fontSize: "10px", fontWeight: "700", letterSpacing: "2px", color: primary, marginBottom: "6px", textTransform: "uppercase" }}>
-              <EditableText fieldId="sectionTitle:summary" value="Hakkımda" singleLine />
-            </div>
-            <EditableText fieldId="personal.summary" value={p.summary} as="p" multiline style={{ fontSize: "11px", lineHeight: "1.7", color: "#C7D2FE" }} />
-          </div>
-        )}
+      <ColumnDropZone
+        column="main"
+        dropLabel={`${getColumnSide(cv, "main") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+        style={{ flex: 1, padding: "40px 32px", display: "flex", flexDirection: "column", gap: "22px" }}
+      >
+        {mainLayoutBlocks.map((blockId) => (
+          <PersonalLayoutBlock
+            key={blockId}
+            cv={cv}
+            blockId={blockId}
+            column="main"
+            accentColor={primary}
+            titleColor={primary}
+            textColor="#FFFFFF"
+            mutedColor="#C7D2FE"
+            photoBorder={`3px solid ${primary}`}
+            align="left"
+            summaryTitle="Hakkımda"
+          />
+        ))}
 
         {/* Dynamic sections */}
         {mainSectionIds.map((sectionId) => {

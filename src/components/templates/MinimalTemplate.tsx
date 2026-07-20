@@ -2,10 +2,11 @@
 
 import React from "react";
 import { CVData } from "@/lib/cv-types";
-import { getContactItems, getPersonalDetailItems } from "@/lib/personal-info";
-import { getCustomSection, getOrderedSectionIds, getSectionTitle, isBuiltInSectionId } from "@/lib/section-utils";
+import { getColumnSide, getCustomSection, getLayoutBlocksForColumn, getSectionsForColumn, getSectionTitle, hasSidebarLayoutContent, isBuiltInSectionId, isSidebarRight } from "@/lib/section-utils";
 import { resolveFontFamily } from "@/lib/font-options";
-import { DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
+import { ColumnDropZone, DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
+import CompactSidebarSection from "@/components/templates/CompactSidebarSection";
+import PersonalLayoutBlock from "@/components/templates/PersonalLayoutBlock";
 
 interface Props {
   cv: CVData;
@@ -13,9 +14,13 @@ interface Props {
 }
 
 export default function MinimalTemplate({ cv, scale = 1 }: Props) {
-  const { personalInfo: p, sections, theme } = cv;
-  const contactItems = getContactItems(p);
-  const personalDetailItems = getPersonalDetailItems(p);
+  const { sections, theme } = cv;
+  const mainSections = getSectionsForColumn(cv, "main");
+  const sidebarSections = getSectionsForColumn(cv, "sidebar");
+  const mainLayoutBlocks = getLayoutBlocksForColumn(cv, "main");
+  const sidebarLayoutBlocks = getLayoutBlocksForColumn(cv, "sidebar");
+  const showSidebar = hasSidebarLayoutContent(cv);
+  const sidebarOnRight = isSidebarRight(cv);
 
   return (
     <div
@@ -24,7 +29,8 @@ export default function MinimalTemplate({ cv, scale = 1 }: Props) {
         width: "794px",
         minHeight: "1123px",
         backgroundColor: "#FFFFFF",
-        padding: "64px 80px",
+        display: "flex",
+        flexDirection: sidebarOnRight ? "row-reverse" : "row",
         fontFamily: resolveFontFamily(theme.fontFamily),
         fontSize: "12px",
         color: "#1A1A1A",
@@ -33,41 +39,64 @@ export default function MinimalTemplate({ cv, scale = 1 }: Props) {
         boxSizing: "border-box",
       }}
     >
-      {/* Header */}
-      <div style={{ marginBottom: "32px" }}>
-        <h1 style={{ fontSize: "32px", fontWeight: "700", margin: 0, letterSpacing: "-0.5px" }}>
-          <EditableText fieldId="personal.fullName" value={`${p.firstName} ${p.lastName}`.trim()} singleLine placeholder="Ad Soyad" />
-        </h1>
-        {p.title && (
-          <div style={{ fontSize: "14px", color: "#666", marginTop: "4px" }}>
-            <EditableText fieldId="personal.title" value={p.title} singleLine />
-          </div>
-        )}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 20px", marginTop: "10px", fontSize: "11px", color: "#555" }}>
-          {contactItems.map((item) => (
-            <span key={item.label}><EditableText fieldId={`personal.${item.field}`} value={item.value} singleLine /></span>
+      {showSidebar && (
+        <ColumnDropZone
+          as="aside"
+          column="sidebar"
+          dropLabel={`${getColumnSide(cv, "sidebar") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+          style={{ width: "218px", minHeight: "1123px", flexShrink: 0, padding: "52px 24px", backgroundColor: "#F6F6F6", borderRight: sidebarOnRight ? "0" : "1px solid #E6E6E6", borderLeft: sidebarOnRight ? "1px solid #E6E6E6" : "0" }}
+        >
+          {sidebarLayoutBlocks.map((blockId) => (
+            <PersonalLayoutBlock
+              key={blockId}
+              cv={cv}
+              blockId={blockId}
+              column="sidebar"
+              accentColor="#1A1A1A"
+              titleColor="#1A1A1A"
+              textColor="#1A1A1A"
+              mutedColor="#666666"
+              align="left"
+            />
           ))}
-        </div>
-        {personalDetailItems.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: "8px", fontSize: "10px", color: "#666" }}>
-            {personalDetailItems.map((item) => (
-              <span key={item.label}>{item.label}: <EditableText fieldId={`personal.${item.field}`} value={item.value} singleLine /></span>
-            ))}
-          </div>
-        )}
-      </div>
+          {sidebarSections.map((sectionId) => (
+            <CompactSidebarSection
+              key={sectionId}
+              cv={cv}
+              sectionId={sectionId}
+              titleColor="#1A1A1A"
+              textColor="#1A1A1A"
+              mutedColor="#666666"
+              accentColor="#1A1A1A"
+            />
+          ))}
+        </ColumnDropZone>
+      )}
+
+      <ColumnDropZone
+        as="main"
+        column="main"
+        dropLabel={`${getColumnSide(cv, "main") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+        style={{ flex: 1, minWidth: 0, padding: showSidebar ? "56px 46px" : "64px 80px" }}
+      >
+      {mainLayoutBlocks.map((blockId) => (
+        <PersonalLayoutBlock
+          key={blockId}
+          cv={cv}
+          blockId={blockId}
+          column="main"
+          accentColor="#1A1A1A"
+          titleColor="#1A1A1A"
+          textColor="#1A1A1A"
+          mutedColor="#555555"
+          align="left"
+        />
+      ))}
 
       <div style={{ height: "1px", backgroundColor: "#1A1A1A", marginBottom: "28px" }} />
 
-      {/* Summary */}
-      {p.summary && (
-        <div style={{ marginBottom: "24px" }}>
-          <EditableText fieldId="personal.summary" value={p.summary} as="p" multiline style={{ fontSize: "11px", lineHeight: "1.8", color: "#333", margin: 0 }} />
-        </div>
-      )}
-
       {/* Sections */}
-      {getOrderedSectionIds(cv).map((sectionId) => {
+      {mainSections.map((sectionId) => {
         if (!isBuiltInSectionId(sectionId)) {
           const customSection = getCustomSection(cv, sectionId);
           if (!customSection) return null;
@@ -185,6 +214,7 @@ export default function MinimalTemplate({ cv, scale = 1 }: Props) {
           </DraggableSection>
         );
       })}
+      </ColumnDropZone>
     </div>
   );
 }

@@ -2,10 +2,14 @@
 
 import { useMemo, useState, type ComponentType, type DragEvent, type ReactNode } from "react";
 import { useCVStore } from "@/store/cv-store";
-import { type SectionId, type SectionKey } from "@/lib/cv-types";
+import { type CVLayoutBlockId, type SectionId, type SectionKey } from "@/lib/cv-types";
 import {
+  CV_LAYOUT_BLOCKS,
   SECTION_TYPE_OPTIONS,
+  getColumnForSide,
+  getColumnSide,
   getEditableSectionIds,
+  getLayoutBlockColumn,
   getSectionItemCount,
   getSectionColumn,
   getSectionTitle,
@@ -16,15 +20,19 @@ import {
   Award,
   BookOpen,
   BriefcaseBusiness,
+  Camera,
   ChevronDown,
   ChevronUp,
+  Contact,
   Copy,
   Eye,
   EyeOff,
+  FileText,
   FolderKanban,
   GraduationCap,
   GripVertical,
   Heart,
+  IdCard,
   Languages,
   MoreVertical,
   Pencil,
@@ -33,6 +41,7 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  UserRound,
   Users,
 } from "lucide-react";
 
@@ -47,6 +56,14 @@ const SECTION_ICONS: Record<SectionKey, ComponentType<{ className?: string }>> =
   interests: Heart,
 };
 
+const LAYOUT_BLOCK_ICONS: Record<CVLayoutBlockId, ComponentType<{ className?: string }>> = {
+  photo: Camera,
+  identity: UserRound,
+  contact: Contact,
+  personalDetails: IdCard,
+  summary: FileText,
+};
+
 type SectionDropPosition = "before" | "after";
 type DragOverState = { index: number; position: SectionDropPosition } | null;
 
@@ -57,6 +74,7 @@ export default function SectionOrderPanel() {
     setSectionTitle,
     setSectionVisibility,
     setSectionColumn,
+    setLayoutBlockColumn,
     addSection,
     duplicateSection,
     removeSection,
@@ -131,8 +149,50 @@ export default function SectionOrderPanel() {
       <div>
         <h3 className="text-sm font-bold text-[#2B2A28] uppercase tracking-wider mb-2">Bölümler</h3>
         <p className="text-xs text-[#7A766E]">
-          Bölüm başlıklarını düzenleyin, görünürlüğü yönetin ve sıralamayı sürükleyerek değiştirin.
+          Tüm alanların sırasını ve sütununu yönetin. Ön izlemede sürükleyebilir, mobilde taşıma düğmelerini kullanabilirsiniz.
         </p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#2B2A28]">Temel alanlar</h4>
+          <span className="text-[10px] font-medium text-[#7A766E]">Sol / sağ yerleşim</span>
+        </div>
+
+        {CV_LAYOUT_BLOCKS.map((block) => {
+          const column = getLayoutBlockColumn(cv, block.id);
+          const side = getColumnSide(cv, column);
+          const targetSide = side === "left" ? "right" : "left";
+          const Icon = LAYOUT_BLOCK_ICONS[block.id];
+
+          return (
+            <div
+              key={block.id}
+              className="flex min-h-14 items-center gap-3 rounded-lg border border-[#E8E4DC] bg-white px-3 py-2.5"
+            >
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[#B08D57]/10 text-[#B08D57]">
+                <Icon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-[#2B2A28]">{block.label}</div>
+                <div className="mt-0.5 text-[11px] text-[#7A766E]">
+                  {side === "left" ? "Sol sütun" : "Sağ sütun"}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLayoutBlockColumn(block.id, getColumnForSide(cv, targetSide))}
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-[#E8E4DC] text-[#7A766E] transition-colors hover:border-[#B08D57] hover:bg-[#B08D57]/5 hover:text-[#B08D57]"
+                title={`${targetSide === "left" ? "Sola" : "Sağa"} taşı`}
+                aria-label={`${block.label} alanını ${targetSide === "left" ? "sola" : "sağa"} taşı`}
+              >
+                {targetSide === "left"
+                  ? <PanelLeft className="h-4 w-4" />
+                  : <PanelRight className="h-4 w-4" />}
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       <div className="rounded-lg border border-[#E8E4DC] bg-[#FAF9F6] p-3 space-y-2">
@@ -179,6 +239,8 @@ export default function SectionOrderPanel() {
         {order.map((sectionId, index) => {
           const visible = isSectionVisible(cv, sectionId);
           const column = getSectionColumn(cv, sectionId);
+          const side = getColumnSide(cv, column);
+          const targetSide = side === "left" ? "right" : "left";
           const count = getSectionItemCount(cv, sectionId);
           const Icon = isBuiltInSectionId(sectionId) ? SECTION_ICONS[sectionId] : BookOpen;
           const isMenuOpen = menuId === sectionId;
@@ -236,7 +298,7 @@ export default function SectionOrderPanel() {
                   </div>
                 )}
                 <div className="mt-0.5 text-[11px] text-[#7A766E]">
-                  {count} içerik · {column === "sidebar" ? "Yan sütun" : "Ana alan"}
+                  {count} içerik · {side === "left" ? "Sol sütun" : "Sağ sütun"}
                 </div>
               </div>
 
@@ -277,10 +339,10 @@ export default function SectionOrderPanel() {
                     }}
                   />
                   <MenuButton
-                    icon={column === "sidebar" ? <PanelRight className="w-3.5 h-3.5" /> : <PanelLeft className="w-3.5 h-3.5" />}
-                    label={column === "sidebar" ? "Ana alana taşı" : "Yan sütuna taşı"}
+                    icon={targetSide === "left" ? <PanelLeft className="w-3.5 h-3.5" /> : <PanelRight className="w-3.5 h-3.5" />}
+                    label={targetSide === "left" ? "Sola taşı" : "Sağa taşı"}
                     onClick={() => {
-                      setSectionColumn(sectionId, column === "sidebar" ? "main" : "sidebar");
+                      setSectionColumn(sectionId, getColumnForSide(cv, targetSide));
                       setMenuId(null);
                     }}
                   />

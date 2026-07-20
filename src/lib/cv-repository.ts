@@ -9,6 +9,7 @@ import {
   DEFAULT_THEME,
   SECTION_LABELS,
   type CVData,
+  type CVLayoutBlockId,
   type CustomSection,
   type SectionId,
   type SectionKey,
@@ -20,6 +21,7 @@ import { nanoid } from "@/lib/nanoid";
 const LOCAL_DATA_DIR = path.join(process.cwd(), ".data");
 const LOCAL_CV_FILE = path.join(LOCAL_DATA_DIR, "cvs.json");
 const VALID_SECTION_KEYS = new Set<SectionKey>(DEFAULT_SECTION_ORDER);
+const VALID_LAYOUT_BLOCKS = new Set<CVLayoutBlockId>(["photo", "identity", "contact", "personalDetails", "summary"]);
 
 function hasDatabase() {
   return Boolean(process.env.DATABASE_URL);
@@ -98,6 +100,17 @@ function normalizeSectionOrder(value: unknown, customSections: CustomSection[]):
   return filtered.length ? filtered : [...DEFAULT_SECTION_ORDER];
 }
 
+function normalizeLayoutBlockColumns(value: unknown) {
+  if (!isRecord(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([id, column]) => VALID_LAYOUT_BLOCKS.has(id as CVLayoutBlockId)
+        && (column === "sidebar" || column === "main"),
+    ),
+  ) as Partial<Record<CVLayoutBlockId, "sidebar" | "main">>;
+}
+
 function normalizeCV(input: Partial<CVRecord> & Partial<CVData>, userId: string): CVRecord {
   const now = new Date();
   const customSections = normalizeCustomSections(input.sections?.customSections);
@@ -132,6 +145,7 @@ function normalizeCV(input: Partial<CVRecord> & Partial<CVData>, userId: string)
     theme: {
       ...DEFAULT_THEME,
       ...(input.theme ?? {}),
+      layoutBlockColumns: normalizeLayoutBlockColumns(input.theme?.layoutBlockColumns),
       globalTextStyle: { ...DEFAULT_THEME.globalTextStyle, ...(input.theme?.globalTextStyle ?? {}) },
       textStyles: { ...DEFAULT_THEME.textStyles, ...(input.theme?.textStyles ?? {}) },
       richText: { ...DEFAULT_THEME.richText, ...(input.theme?.richText ?? {}) },

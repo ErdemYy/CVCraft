@@ -2,10 +2,11 @@
 
 import React from "react";
 import { CVData } from "@/lib/cv-types";
-import { getContactItems, getPersonalDetailItems } from "@/lib/personal-info";
-import { getCustomSection, getOrderedSectionIds, getSectionTitle, isBuiltInSectionId } from "@/lib/section-utils";
+import { getColumnSide, getCustomSection, getLayoutBlocksForColumn, getSectionsForColumn, getSectionTitle, hasSidebarLayoutContent, isBuiltInSectionId, isSidebarRight } from "@/lib/section-utils";
 import { resolveFontFamily } from "@/lib/font-options";
-import { DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
+import { ColumnDropZone, DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
+import CompactSidebarSection from "@/components/templates/CompactSidebarSection";
+import PersonalLayoutBlock from "@/components/templates/PersonalLayoutBlock";
 
 interface Props {
   cv: CVData;
@@ -13,10 +14,14 @@ interface Props {
 }
 
 export default function ClassicTemplate({ cv, scale = 1 }: Props) {
-  const { personalInfo: p, sections, theme } = cv;
+  const { sections, theme } = cv;
   const primary = theme.primaryColor || "#1A3A5C";
-  const contactItems = getContactItems(p);
-  const personalDetailItems = getPersonalDetailItems(p);
+  const mainSections = getSectionsForColumn(cv, "main");
+  const sidebarSections = getSectionsForColumn(cv, "sidebar");
+  const mainLayoutBlocks = getLayoutBlocksForColumn(cv, "main");
+  const sidebarLayoutBlocks = getLayoutBlocksForColumn(cv, "sidebar");
+  const showSidebar = hasSidebarLayoutContent(cv);
+  const sidebarOnRight = isSidebarRight(cv);
 
   return (
     <div
@@ -25,7 +30,8 @@ export default function ClassicTemplate({ cv, scale = 1 }: Props) {
         width: "794px",
         minHeight: "1123px",
         backgroundColor: "#FFFFFF",
-        padding: "60px 64px",
+        display: "flex",
+        flexDirection: sidebarOnRight ? "row-reverse" : "row",
         fontFamily: resolveFontFamily(theme.fontFamily === "inter" ? "georgia" : theme.fontFamily),
         fontSize: theme.fontSize === "small" ? "11px" : theme.fontSize === "large" ? "14px" : "12px",
         color: "#2B2A28",
@@ -34,42 +40,66 @@ export default function ClassicTemplate({ cv, scale = 1 }: Props) {
         boxSizing: "border-box",
       }}
     >
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: "28px", borderBottom: `3px solid ${primary}`, paddingBottom: "20px" }}>
-        <h1 style={{ fontSize: "28px", fontWeight: "700", color: primary, margin: 0, letterSpacing: "1px" }}>
-          <EditableText fieldId="personal.fullName" value={`${p.firstName} ${p.lastName}`.trim()} singleLine placeholder="Ad Soyad" />
-        </h1>
-        {p.title && (
-          <div style={{ fontSize: "14px", color: "#666", marginTop: "6px", fontStyle: "italic" }}>
-            <EditableText fieldId="personal.title" value={p.title} singleLine />
-          </div>
-        )}
-        <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: "8px 16px", marginTop: "12px", fontSize: "11px", color: "#555" }}>
-          {contactItems.map((item) => (
-            <span key={item.label}>{item.icon} <EditableText fieldId={`personal.${item.field}`} value={item.value} singleLine /></span>
+      {showSidebar && (
+        <ColumnDropZone
+          as="aside"
+          column="sidebar"
+          dropLabel={`${getColumnSide(cv, "sidebar") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+          style={{ width: "230px", minHeight: "1123px", flexShrink: 0, padding: "48px 24px", backgroundColor: `${primary}0D`, borderRight: sidebarOnRight ? "0" : `1px solid ${primary}24`, borderLeft: sidebarOnRight ? `1px solid ${primary}24` : "0" }}
+        >
+          {sidebarLayoutBlocks.map((blockId) => (
+            <PersonalLayoutBlock
+              key={blockId}
+              cv={cv}
+              blockId={blockId}
+              column="sidebar"
+              accentColor={primary}
+              titleColor={primary}
+              textColor="#2B2A28"
+              mutedColor="#666666"
+              headingFont="Georgia, serif"
+              align="left"
+              summaryTitle="Özet"
+            />
           ))}
-        </div>
-        {personalDetailItems.length > 0 && (
-          <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: "6px 14px", marginTop: "10px", fontSize: "10px", color: "#666" }}>
-            {personalDetailItems.map((item) => (
-              <span key={item.label}><strong>{item.label}:</strong> <EditableText fieldId={`personal.${item.field}`} value={item.value} singleLine /></span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Summary */}
-      {p.summary && (
-        <div style={{ marginBottom: "20px" }}>
-          <h2 style={{ fontSize: "13px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "2px", color: primary, borderBottom: `1px solid ${primary}`, paddingBottom: "4px", marginBottom: "10px" }}>
-            <EditableText fieldId="sectionTitle:summary" value="Özet" singleLine />
-          </h2>
-          <EditableText fieldId="personal.summary" value={p.summary} as="p" multiline style={{ fontSize: "11px", lineHeight: "1.7", color: "#444" }} />
-        </div>
+          {sidebarSections.map((sectionId) => (
+            <CompactSidebarSection
+              key={sectionId}
+              cv={cv}
+              sectionId={sectionId}
+              titleColor={primary}
+              textColor="#2B2A28"
+              mutedColor="#666666"
+              accentColor={primary}
+            />
+          ))}
+        </ColumnDropZone>
       )}
 
+      <ColumnDropZone
+        as="main"
+        column="main"
+        dropLabel={`${getColumnSide(cv, "main") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+        style={{ flex: 1, minWidth: 0, padding: showSidebar ? "52px 44px" : "60px 64px" }}
+      >
+      {mainLayoutBlocks.map((blockId) => (
+        <PersonalLayoutBlock
+          key={blockId}
+          cv={cv}
+          blockId={blockId}
+          column="main"
+          accentColor={primary}
+          titleColor={primary}
+          textColor="#2B2A28"
+          mutedColor="#555555"
+          headingFont="Georgia, serif"
+          align={blockId === "identity" && !showSidebar ? "center" : "left"}
+          summaryTitle="Özet"
+        />
+      ))}
+
       {/* Dynamic sections */}
-      {getOrderedSectionIds(cv).map((sectionId) => {
+      {mainSections.map((sectionId) => {
         if (!isBuiltInSectionId(sectionId)) {
           const customSection = getCustomSection(cv, sectionId);
           if (!customSection) return null;
@@ -203,6 +233,7 @@ export default function ClassicTemplate({ cv, scale = 1 }: Props) {
           </DraggableSection>
         );
       })}
+      </ColumnDropZone>
     </div>
   );
 }

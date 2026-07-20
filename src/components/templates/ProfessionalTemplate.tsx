@@ -3,11 +3,11 @@
 import React from "react";
 import { CVData, DEFAULT_THEME, type SectionId } from "@/lib/cv-types";
 import { getContactItems, getPersonalDetailItems } from "@/lib/personal-info";
-import { getCustomSection, getOrderedSectionIds, getSectionsForColumn, getSectionTitle, isBuiltInSectionId, isSidebarRight } from "@/lib/section-utils";
+import { getColumnSide, getCustomSection, getLayoutBlocksForColumn, getOrderedSectionIds, getSectionsForColumn, getSectionTitle, hasSidebarLayoutContent, isBuiltInSectionId, isSidebarRight } from "@/lib/section-utils";
 import { resolveFontFamily } from "@/lib/font-options";
-import CVPhoto from "@/components/templates/CVPhoto";
-import { ColumnDropZone, DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
+import { ColumnDropZone, DraggableLayoutBlock, DraggableSection, EditableText } from "@/components/templates/PreviewEditContext";
 import CompactSidebarSection from "@/components/templates/CompactSidebarSection";
+import PersonalLayoutBlock from "@/components/templates/PersonalLayoutBlock";
 
 interface Props {
   cv: CVData;
@@ -148,6 +148,10 @@ export default function ProfessionalTemplate({ cv, scale = 1 }: Props) {
     return <EditorialLayout cv={cv} scale={scale} variant={variant} colors={colors} />;
   }
 
+  if (variant.layout === "single" && hasSidebarLayoutContent(cv)) {
+    return <SplitLayout cv={cv} scale={scale} variant={variant} colors={colors} />;
+  }
+
   return <SingleLayout cv={cv} scale={scale} variant={variant} colors={colors} />;
 }
 
@@ -196,6 +200,7 @@ function SingleLayout({
   const { personalInfo: p } = cv;
   const font = getFontSize(cv.theme.fontSize);
   const executive = variant.id === "executive";
+  const mainLayoutBlocks = new Set(getLayoutBlocksForColumn(cv, "main"));
 
   return (
     <PageShell cv={cv} scale={scale} variant={variant}>
@@ -211,32 +216,56 @@ function SingleLayout({
             marginBottom: "24px",
           }}
         >
-          <div style={{ borderLeft: executive ? `8px solid ${colors.primary}` : "0", paddingLeft: executive ? "18px" : "0" }}>
-            <div style={{ fontSize: font.small, fontWeight: 800, letterSpacing: "2.5px", color: colors.primary, textTransform: "uppercase", marginBottom: "7px" }}>
-              {variant.label}
-            </div>
-            <h1 style={{ margin: 0, fontFamily: variant.headingFont, fontSize: font.h1, lineHeight: 1.04, color: colors.secondary }}>
-              <EditableText fieldId="personal.fullName" value={[p.firstName, p.lastName].filter(Boolean).join(" ")} singleLine placeholder="Ad Soyad" />
-            </h1>
-            {p.title && (
-              <div style={{ marginTop: "8px", color: colors.muted ?? variant.muted, fontSize: "14px", fontWeight: 600 }}>
-                <EditableText fieldId="personal.title" value={p.title} singleLine />
+          <DraggableLayoutBlock blockId="identity">
+            <div style={{ borderLeft: executive ? `8px solid ${colors.primary}` : "0", paddingLeft: executive ? "18px" : "0" }}>
+              <div style={{ fontSize: font.small, fontWeight: 800, letterSpacing: "2.5px", color: colors.primary, textTransform: "uppercase", marginBottom: "7px" }}>
+                {variant.label}
               </div>
-            )}
-          </div>
+              <h1 style={{ margin: 0, fontFamily: variant.headingFont, fontSize: font.h1, lineHeight: 1.04, color: colors.secondary }}>
+                <EditableText fieldId="personal.fullName" value={[p.firstName, p.lastName].filter(Boolean).join(" ")} singleLine placeholder="Ad Soyad" />
+              </h1>
+              {p.title && (
+                <div style={{ marginTop: "8px", color: colors.muted ?? variant.muted, fontSize: "14px", fontWeight: 600 }}>
+                  <EditableText fieldId="personal.title" value={p.title} singleLine />
+                </div>
+              )}
+            </div>
+          </DraggableLayoutBlock>
 
           <div>
-            <ContactBlock cv={cv} colors={colors} compact align="right" />
-            <PersonalDetailsBlock cv={cv} colors={colors} compact align="right" />
+            {mainLayoutBlocks.has("photo") && (
+              <PersonalLayoutBlock
+                cv={cv}
+                blockId="photo"
+                column="main"
+                accentColor={colors.accent}
+                textColor={colors.secondary}
+                mutedColor={colors.muted}
+                photoBorder={`3px solid ${colors.accent}`}
+                align="right"
+              />
+            )}
+            {mainLayoutBlocks.has("contact") && (
+              <DraggableLayoutBlock blockId="contact">
+                <ContactBlock cv={cv} colors={colors} compact align="right" />
+              </DraggableLayoutBlock>
+            )}
+            {mainLayoutBlocks.has("personalDetails") && (
+              <DraggableLayoutBlock blockId="personalDetails">
+                <PersonalDetailsBlock cv={cv} colors={colors} compact align="right" />
+              </DraggableLayoutBlock>
+            )}
           </div>
         </div>
 
-        {p.summary && (
-          <div style={{ marginBottom: "22px", padding: executive ? "14px 18px" : "0", backgroundColor: executive ? `${colors.accent}22` : "transparent" }}>
-            <p style={{ margin: 0, lineHeight: 1.68, color: colors.secondary }}>
-              <EditableText fieldId="personal.summary" value={p.summary} multiline />
-            </p>
-          </div>
+        {mainLayoutBlocks.has("summary") && p.summary && (
+          <DraggableLayoutBlock blockId="summary">
+            <div style={{ marginBottom: "22px", padding: executive ? "14px 18px" : "0", backgroundColor: executive ? `${colors.accent}22` : "transparent" }}>
+              <p style={{ margin: 0, lineHeight: 1.68, color: colors.secondary }}>
+                <EditableText fieldId="personal.summary" value={p.summary} multiline />
+              </p>
+            </div>
+          </DraggableLayoutBlock>
         )}
 
         {getOrderedSectionIds(cv).map((sectionId) => (
@@ -258,29 +287,38 @@ function SplitLayout({
   variant: Variant;
   colors: ReturnType<typeof getColors>;
 }) {
-  const { personalInfo: p } = cv;
-  const font = getFontSize(cv.theme.fontSize);
   const mainSections = getSectionsForColumn(cv, "main");
   const sidebarSectionIds = getSectionsForColumn(cv, "sidebar");
+  const sidebarLayoutBlocks = getLayoutBlocksForColumn(cv, "sidebar");
+  const mainLayoutBlocks = getLayoutBlocksForColumn(cv, "main");
   const sidebarOnRight = isSidebarRight(cv);
 
   return (
     <PageShell cv={cv} scale={scale} variant={variant}>
       <div style={{ display: "grid", gridTemplateColumns: sidebarOnRight ? "1fr 252px" : "252px 1fr", gridTemplateAreas: sidebarOnRight ? '"main sidebar"' : '"sidebar main"', minHeight: "1123px" }}>
-        <ColumnDropZone as="aside" column="sidebar" style={{ gridArea: "sidebar", backgroundColor: variant.sidebarBg, padding: "44px 26px", borderRight: sidebarOnRight ? "0" : `1px solid ${colors.accent}88`, borderLeft: sidebarOnRight ? `1px solid ${colors.accent}88` : "0" }}>
+        <ColumnDropZone
+          as="aside"
+          column="sidebar"
+          dropLabel={`${getColumnSide(cv, "sidebar") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+          style={{ gridArea: "sidebar", backgroundColor: variant.sidebarBg ?? `${colors.accent}24`, padding: "44px 26px", borderRight: sidebarOnRight ? "0" : `1px solid ${colors.accent}88`, borderLeft: sidebarOnRight ? `1px solid ${colors.accent}88` : "0" }}
+        >
           <div style={{ width: "38px", height: "5px", backgroundColor: colors.primary, marginBottom: "28px" }} />
-          <h1 style={{ margin: 0, fontFamily: variant.headingFont, fontSize: "26px", lineHeight: 1.08, color: colors.secondary }}>
-            <EditableText fieldId="personal.fullName" value={[p.firstName, p.lastName].filter(Boolean).join(" ")} singleLine placeholder="Ad Soyad" />
-          </h1>
-          {p.title && (
-            <div style={{ marginTop: "8px", fontSize: "12px", color: colors.primary, fontWeight: 800, lineHeight: 1.35 }}>
-              <EditableText fieldId="personal.title" value={p.title} singleLine />
-            </div>
-          )}
-
-          <SidebarTitle label="İletişim" color={colors.primary} />
-          <ContactBlock cv={cv} colors={colors} compact />
-          <PersonalDetailsBlock cv={cv} colors={colors} compact />
+          {sidebarLayoutBlocks.map((blockId) => (
+            <PersonalLayoutBlock
+              key={blockId}
+              cv={cv}
+              blockId={blockId}
+              column="sidebar"
+              accentColor={colors.accent}
+              titleColor={colors.primary}
+              textColor={colors.secondary}
+              mutedColor={colors.muted}
+              headingFont={variant.headingFont}
+              photoBorder={`3px solid ${colors.accent}`}
+              align="left"
+              summaryTitle="Profesyonel Profil"
+            />
+          ))}
 
           {sidebarSectionIds.map((sectionId) => (
             <CompactSidebarSection
@@ -295,15 +333,28 @@ function SplitLayout({
           ))}
         </ColumnDropZone>
 
-        <ColumnDropZone as="main" column="main" style={{ gridArea: "main", padding: "46px 44px 42px" }}>
-          <div style={{ marginBottom: "24px", borderBottom: `1px solid ${colors.accent}`, paddingBottom: "18px" }}>
-            <div style={{ fontSize: font.small, fontWeight: 900, letterSpacing: "2px", textTransform: "uppercase", color: colors.primary, marginBottom: "8px" }}>
-              Profesyonel Profil
-            </div>
-            <p style={{ margin: 0, lineHeight: 1.68, color: colors.secondary }}>
-              <EditableText fieldId="personal.summary" value={p.summary || "Kariyer hedeflerini ve profesyonel değer önerini burada özetleyebilirsin."} multiline />
-            </p>
-          </div>
+        <ColumnDropZone
+          as="main"
+          column="main"
+          dropLabel={`${getColumnSide(cv, "main") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+          style={{ gridArea: "main", padding: "46px 44px 42px" }}
+        >
+          {mainLayoutBlocks.map((blockId) => (
+            <PersonalLayoutBlock
+              key={blockId}
+              cv={cv}
+              blockId={blockId}
+              column="main"
+              accentColor={colors.accent}
+              titleColor={colors.primary}
+              textColor={colors.secondary}
+              mutedColor={colors.muted}
+              headingFont={variant.headingFont}
+              photoBorder={`3px solid ${colors.accent}`}
+              align="left"
+              summaryTitle="Profesyonel Profil"
+            />
+          ))}
 
           {mainSections.map((sectionId) => (
             <MainSection key={sectionId} sectionId={sectionId} cv={cv} colors={colors} variant={variant} />
@@ -325,50 +376,123 @@ function EditorialLayout({
   variant: Variant;
   colors: ReturnType<typeof getColors>;
 }) {
-  const { personalInfo: p, theme } = cv;
-  const photoShape = theme.photoShape === "square" ? "0" : theme.photoShape === "rounded" ? "16px" : "50%";
   const mainSections = getSectionsForColumn(cv, "main");
   const sidebarSectionIds = getSectionsForColumn(cv, "sidebar");
+  const mainLayoutBlocks = getLayoutBlocksForColumn(cv, "main");
+  const sidebarLayoutBlocks = getLayoutBlocksForColumn(cv, "sidebar");
+  const headerBlockIds = new Set(["photo", "identity", "summary"]);
+  const mainHeaderBlocks = mainLayoutBlocks.filter((blockId) => headerBlockIds.has(blockId));
+  const sidebarHeaderBlocks = sidebarLayoutBlocks.filter((blockId) => headerBlockIds.has(blockId));
+  const mainBodyBlocks = mainLayoutBlocks.filter((blockId) => !headerBlockIds.has(blockId));
+  const sidebarBodyBlocks = sidebarLayoutBlocks.filter((blockId) => !headerBlockIds.has(blockId));
   const sidebarOnRight = isSidebarRight(cv, true);
 
   return (
     <PageShell cv={cv} scale={scale} variant={variant}>
       <div style={{ minHeight: "1123px", display: "grid", gridTemplateRows: "285px 1fr" }}>
-        <header style={{ backgroundColor: variant.sidebarBg, padding: "44px 56px 34px", position: "relative" }}>
-          <div style={{ position: "absolute", right: "46px", top: "38px", width: "120px", height: "120px", borderRadius: "50%", border: `1px solid ${colors.accent}` }} />
-          {p.photo && (
-            <CVPhoto
-              personalInfo={p}
-              width={96}
-              height={96}
-              fallbackRadius={photoShape}
-              border={`4px solid ${variant.paper}`}
-              style={{ position: "absolute", right: "58px", top: "50px" }}
-            />
-          )}
-          <div style={{ maxWidth: "500px" }}>
-            <div style={{ color: colors.primary, fontSize: "10px", fontWeight: 900, letterSpacing: "3px", textTransform: "uppercase", marginBottom: "12px" }}>
+        <header
+          style={{
+            display: "grid",
+            gridTemplateColumns: sidebarOnRight ? "1fr 220px" : "220px 1fr",
+            gridTemplateAreas: sidebarOnRight ? '"main sidebar"' : '"sidebar main"',
+            backgroundColor: variant.sidebarBg,
+          }}
+        >
+          <ColumnDropZone
+            column="main"
+            dropLabel={`${getColumnSide(cv, "main") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+            style={{ gridArea: "main", padding: "38px 34px 24px 54px" }}
+          >
+            <div style={{ color: colors.primary, fontSize: "10px", fontWeight: 900, letterSpacing: "3px", textTransform: "uppercase", marginBottom: "16px" }}>
               Editorial Portfolio CV
             </div>
-            <h1 style={{ margin: 0, fontFamily: variant.headingFont, fontSize: "40px", lineHeight: 1.02, color: colors.secondary }}>
-              <EditableText fieldId="personal.fullName" value={[p.firstName, p.lastName].filter(Boolean).join(" ")} singleLine placeholder="Ad Soyad" />
-            </h1>
-            {p.title && <div style={{ marginTop: "10px", fontSize: "14px", color: colors.primary, fontWeight: 700 }}><EditableText fieldId="personal.title" value={p.title} singleLine /></div>}
-            {p.summary && <EditableText fieldId="personal.summary" value={p.summary} as="p" multiline style={{ margin: "18px 0 0", lineHeight: 1.62, color: colors.muted ?? variant.muted }} />}
-          </div>
+            {mainHeaderBlocks.map((blockId) => (
+              <PersonalLayoutBlock
+                key={blockId}
+                cv={cv}
+                blockId={blockId}
+                column="main"
+                accentColor={colors.accent}
+                titleColor={colors.primary}
+                textColor={colors.secondary}
+                mutedColor={colors.muted}
+                headingFont={variant.headingFont}
+                photoBorder={`4px solid ${variant.paper}`}
+                align="left"
+                summaryTitle="Profil"
+              />
+            ))}
+          </ColumnDropZone>
+          <ColumnDropZone
+            column="sidebar"
+            dropLabel={`${getColumnSide(cv, "sidebar") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+            style={{ gridArea: "sidebar", padding: "38px 34px 24px" }}
+          >
+            {sidebarHeaderBlocks.map((blockId) => (
+              <PersonalLayoutBlock
+                key={blockId}
+                cv={cv}
+                blockId={blockId}
+                column="sidebar"
+                accentColor={colors.accent}
+                titleColor={colors.primary}
+                textColor={colors.secondary}
+                mutedColor={colors.muted}
+                headingFont={variant.headingFont}
+                photoBorder={`4px solid ${variant.paper}`}
+                align="center"
+                summaryTitle="Profil"
+              />
+            ))}
+          </ColumnDropZone>
         </header>
 
         <div style={{ display: "grid", gridTemplateColumns: sidebarOnRight ? "1fr 225px" : "225px 1fr", gridTemplateAreas: sidebarOnRight ? '"main sidebar"' : '"sidebar main"', gap: "34px", padding: "36px 54px 44px" }}>
-          <ColumnDropZone as="main" column="main" style={{ gridArea: "main" }}>
+          <ColumnDropZone
+            as="main"
+            column="main"
+            dropLabel={`${getColumnSide(cv, "main") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+            style={{ gridArea: "main" }}
+          >
+            {mainBodyBlocks.map((blockId) => (
+              <PersonalLayoutBlock
+                key={blockId}
+                cv={cv}
+                blockId={blockId}
+                column="main"
+                accentColor={colors.accent}
+                titleColor={colors.primary}
+                textColor={colors.secondary}
+                mutedColor={colors.muted}
+                headingFont={variant.headingFont}
+                align="left"
+              />
+            ))}
             {mainSections.map((key) => (
               <MainSection key={key} sectionId={key} cv={cv} colors={colors} variant={variant} />
             ))}
           </ColumnDropZone>
 
-          <ColumnDropZone as="aside" column="sidebar" style={{ gridArea: "sidebar" }}>
-            <SidebarTitle label="İletişim" color={colors.primary} />
-            <ContactBlock cv={cv} colors={colors} compact />
-            <PersonalDetailsBlock cv={cv} colors={colors} compact />
+          <ColumnDropZone
+            as="aside"
+            column="sidebar"
+            dropLabel={`${getColumnSide(cv, "sidebar") === "left" ? "Sol" : "Sağ"} sütuna bırak`}
+            style={{ gridArea: "sidebar" }}
+          >
+            {sidebarBodyBlocks.map((blockId) => (
+              <PersonalLayoutBlock
+                key={blockId}
+                cv={cv}
+                blockId={blockId}
+                column="sidebar"
+                accentColor={colors.accent}
+                titleColor={colors.primary}
+                textColor={colors.secondary}
+                mutedColor={colors.muted}
+                headingFont={variant.headingFont}
+                align="left"
+              />
+            ))}
 
             {sidebarSectionIds.map((sectionId) => (
               <CompactSidebarSection
@@ -385,14 +509,6 @@ function EditorialLayout({
         </div>
       </div>
     </PageShell>
-  );
-}
-
-function SidebarTitle({ label, color }: { label: string; color: string }) {
-  return (
-    <div style={{ marginTop: "26px", marginBottom: "10px", fontSize: "9px", fontWeight: 900, letterSpacing: "2.2px", color, textTransform: "uppercase" }}>
-      {label}
-    </div>
   );
 }
 
